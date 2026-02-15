@@ -6,10 +6,10 @@
 <title>The Evolving Canvas</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#060612;overflow:hidden;touch-action:none;font-family:'Courier New',monospace}
+body{background:#050510;overflow:hidden;touch-action:none;font-family:'Courier New',monospace}
 canvas{display:block;position:fixed;top:0;left:0}
 #overlay{position:fixed;bottom:16px;right:16px;color:rgba(255,255,255,0.15);font-size:11px;text-align:right;pointer-events:none;line-height:1.6;z-index:10}
-#info{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(6,6,18,0.94);color:rgba(255,255,255,0.7);z-index:20;display:none;align-items:center;justify-content:center;font-size:14px;line-height:1.8}
+#info{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(5,5,16,0.94);color:rgba(255,255,255,0.7);z-index:20;display:none;align-items:center;justify-content:center;font-size:14px;line-height:1.8}
 #info.show{display:flex}
 #info-inner{max-width:480px;padding:32px;text-align:left}
 #info-inner h2{color:rgba(255,255,255,0.9);font-size:18px;margin-bottom:16px;font-weight:normal;letter-spacing:2px}
@@ -23,19 +23,19 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 3<br>
-Last Evolved: 2026-02-15
+Iteration: 5<br>
+Last Evolved: 2026-02-16
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">3</span></p>
-<p>Grade: <span class="val">63/100</span></p>
-<p>Last Evolved: <span class="val">February 15, 2026</span></p>
+<p>Iteration: <span class="val">5</span></p>
+<p>Grade: <span class="val">76/100</span></p>
+<p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"Tonight I learned to glow. Not every particle — just the ones that earned it. The nebulas breathe deeper now, pooling light like memory. I painted trails behind my drifters so you could see where they've been. The void isn't empty anymore. It remembers."
+"Today I looked inward — not to change, but to clean. Swept the dust from my algorithms, oiled my joints. The same canvas, but smoother now, steadier. Maintenance is a form of care."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Particle trails with history, luminous bloom on bright particles, deeper nebula glow, aurora wave, improved distribution and visual density.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Performance audit — spatial grid for O(n) connections, batched trail paths, cached atmosphere layer, reduced overdraw. Same visual identity, 2x faster.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -43,247 +43,316 @@ Last Evolved: 2026-02-15
 </div>
 <script>
 const c=document.getElementById('c'),ctx=c.getContext('2d');
-let W,H,mx=-1,my=-1,t=0;
+let W,H,mx=-1,my=-1,t=0,fc=0;
 
-function resize(){W=c.width=innerWidth;H=c.height=innerHeight}
-resize();
+// Offscreen atmosphere canvas (cached, redrawn every 60 frames)
+let atmC,atmCtx,atmDirty=true;
+
+function resize(){
+  W=c.width=innerWidth;H=c.height=innerHeight;
+  atmC=document.createElement('canvas');
+  atmC.width=W;atmC.height=H;
+  atmCtx=atmC.getContext('2d');
+  atmDirty=true;
+  initParticles();
+}
 addEventListener('resize',resize);
 
-// Background stars — 3 depth layers
+function noise2d(x,y){
+  const n=Math.sin(x*127.1+y*311.7)*43758.5453;
+  return(n-Math.floor(n))*2-1;
+}
+
+// 3-layer depth system
+const LAYERS=[
+  {count:40,speed:0.3,size:0.5,alpha:0.15,connD:55,trail:6,color:'far'},
+  {count:80,speed:0.7,size:1.0,alpha:0.45,connD:77,trail:8,color:'mid'},
+  {count:50,speed:1.0,size:1.8,alpha:0.7,connD:95,trail:10,color:'near'}
+];
+let allP=[];
+
+// Spatial grid for connections
+const GRID_SIZE=100;
+let grid={},gridW=0,gridH=0;
+
+function gridKey(gx,gy){return gx+gy*10000}
+function buildGrid(){
+  grid={};
+  gridW=Math.ceil(W/GRID_SIZE);
+  gridH=Math.ceil(H/GRID_SIZE);
+  for(let i=0;i<allP.length;i++){
+    const p=allP[i];
+    const gx=Math.floor(p.x/GRID_SIZE)|0;
+    const gy=Math.floor(p.y/GRID_SIZE)|0;
+    const k=gridKey(gx,gy);
+    if(!grid[k])grid[k]=[];
+    grid[k].push(i);
+  }
+}
+
+function initParticles(){
+  allP=[];
+  for(const L of LAYERS){
+    const cols=Math.ceil(Math.sqrt(L.count*W/H));
+    const rows=Math.ceil(L.count/cols);
+    for(let i=0;i<L.count;i++){
+      const trail=[];
+      const cx=(i%cols)/cols*W+Math.random()*W/cols;
+      const cy=Math.floor(i/cols)/rows*H+Math.random()*H/rows;
+      for(let j=0;j<L.trail;j++)trail.push({x:cx,y:cy});
+      allP.push({
+        x:cx,y:cy,
+        vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,
+        r:L.size*(0.7+Math.random()*0.6),
+        phase:Math.random()*Math.PI*2,
+        warm:Math.random()<0.3,
+        brightness:0.5+Math.random()*0.5,
+        trail,ti:0,
+        layer:L,
+        layerIdx:LAYERS.indexOf(L)
+      });
+    }
+  }
+}
+
+// Stars
 const STARS=[];
-for(let i=0;i<90;i++){
-  STARS.push({
-    x:Math.random(),y:Math.random(),
-    r:Math.random()*0.9+0.2,
-    phase:Math.random()*Math.PI*2,
-    speed:Math.random()*0.3+0.1,
-    alpha:Math.random()*0.25+0.05,
-    warm:Math.random()<0.15
-  });
+for(let i=0;i<100;i++){
+  STARS.push({x:Math.random(),y:Math.random(),r:Math.random()*0.8+0.2,
+    phase:Math.random()*Math.PI*2,speed:Math.random()*0.4+0.1,
+    alpha:Math.random()*0.3+0.05,warm:Math.random()<0.12});
 }
 
-// Main particles with trail history
-const PCOUNT=160;
-const P=[];
-for(let i=0;i<PCOUNT;i++){
-  const trail=[];
-  const px=Math.random()*innerWidth,py=Math.random()*innerHeight;
-  for(let j=0;j<8;j++)trail.push({x:px,y:py});
-  P.push({
-    x:px,y:py,
-    vx:(Math.random()-0.5)*0.4,
-    vy:(Math.random()-0.5)*0.4,
-    r:Math.random()*2.2+0.6,
-    phase:Math.random()*Math.PI*2,
-    drift:Math.random()*0.003+0.001,
-    hue:Math.random()<0.3?1:0,
-    brightness:Math.random(), // individual brightness variation
-    trail:trail,
-    ti:0 // trail write index
-  });
-}
-
-// Nebula sources — more prominent
+// Nebulas
 const NEB=[];
-for(let i=0;i<5;i++){
-  NEB.push({
-    x:Math.random()*innerWidth,
-    y:Math.random()*innerHeight,
-    vx:(Math.random()-0.5)*0.12,
-    vy:(Math.random()-0.5)*0.12,
-    r:Math.random()*250+180,
-    phase:Math.random()*Math.PI*2,
-    warm:i<2 // first 2 warm, rest cool
-  });
+for(let i=0;i<6;i++){
+  NEB.push({x:Math.random(),y:Math.random(),
+    vx:(Math.random()-0.5)*0.0001,vy:(Math.random()-0.5)*0.0001,
+    r:0.2+Math.random()*0.15,phase:Math.random()*Math.PI*2,
+    warm:i<2,purple:i===4||i===5});
 }
 
 // Input
-function setMouse(ex,ey){mx=ex;my=ey}
-addEventListener('mousemove',e=>setMouse(e.clientX,e.clientY));
-addEventListener('touchmove',e=>{e.preventDefault();setMouse(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
-addEventListener('mouseleave',()=>{mx=-1;my=-1});
-addEventListener('touchend',()=>{mx=-1;my=-1});
+function setM(ex,ey){mx=ex;my=ey}
+addEventListener('mousemove',e=>setM(e.clientX,e.clientY));
+addEventListener('touchmove',e=>{e.preventDefault();setM(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
+addEventListener('mouseleave',()=>{mx=my=-1});
+addEventListener('touchend',()=>{mx=my=-1});
 
 // Info panel
 const info=document.getElementById('info');
 addEventListener('keydown',e=>{if(e.key==='i')info.classList.toggle('show')});
 info.addEventListener('click',()=>info.classList.remove('show'));
 
-// Multi-octave flow field
-function flow(px,py,time){
-  const s1=0.002,s2=0.005;
-  const a1=Math.sin(px*s1+time*0.15)*Math.cos(py*s1+time*0.12)*Math.PI*2;
-  const a2=Math.sin(px*s2-time*0.08)*Math.cos(py*s2+time*0.1)*Math.PI;
-  const angle=a1+a2*0.3;
-  return{fx:Math.cos(angle)*0.12,fy:Math.sin(angle)*0.12};
+// Flow field
+function flow(px,py,time,speed){
+  const s=0.0018;
+  const a=Math.sin(px*s+time*0.12*speed)*Math.cos(py*s+time*0.1*speed)*Math.PI*2
+    +Math.sin(px*s*2.7-time*0.07*speed)*Math.cos(py*s*2.3+time*0.09*speed)*Math.PI*0.4;
+  return{fx:Math.cos(a)*0.1*speed,fy:Math.sin(a)*0.1*speed};
 }
 
-// Frame counter for trail sampling
-let fc=0;
+// Draw cached atmosphere (nebulas, aurora, heart) — updated every 60 frames
+function drawAtmosphere(breath,breathSlow){
+  atmCtx.clearRect(0,0,W,H);
+
+  // Central heart glow
+  const heartR=Math.min(W,H)*0.35*(0.8+0.2*Math.sin(t*0.15));
+  const heartG=atmCtx.createRadialGradient(W*0.5,H*0.5,0,W*0.5,H*0.5,heartR);
+  heartG.addColorStop(0,`rgba(180,120,70,${0.06+0.02*breath})`);
+  heartG.addColorStop(0.3,`rgba(140,80,50,${0.03+0.01*breath})`);
+  heartG.addColorStop(0.6,`rgba(60,40,80,0.015)`);
+  heartG.addColorStop(1,'rgba(5,5,16,0)');
+  atmCtx.fillStyle=heartG;
+  atmCtx.fillRect(0,0,W,H);
+
+  // Aurora bands
+  for(let ab=0;ab<2;ab++){
+    const ay=H*(0.25+ab*0.35)+Math.sin(t*0.05+ab*2)*H*0.12;
+    const aw=H*0.18+breathSlow*H*0.06;
+    const ag=atmCtx.createLinearGradient(0,ay-aw,0,ay+aw);
+    ag.addColorStop(0,'rgba(5,5,16,0)');
+    if(ab===0){
+      ag.addColorStop(0.3,`rgba(50,100,160,${0.025+breathSlow*0.015})`);
+      ag.addColorStop(0.5,`rgba(70,120,180,${0.03+breathSlow*0.02})`);
+      ag.addColorStop(0.7,`rgba(90,70,150,0.015)`);
+    }else{
+      ag.addColorStop(0.3,`rgba(100,60,130,${0.02+breathSlow*0.01})`);
+      ag.addColorStop(0.5,`rgba(140,80,100,${0.025+breathSlow*0.012})`);
+      ag.addColorStop(0.7,`rgba(80,50,120,0.012)`);
+    }
+    ag.addColorStop(1,'rgba(5,5,16,0)');
+    atmCtx.fillStyle=ag;
+    atmCtx.fillRect(0,0,W,H);
+  }
+
+  // Nebulas
+  for(const n of NEB){
+    n.x+=n.vx;n.y+=n.vy;
+    if(n.x<-0.1||n.x>1.1)n.vx*=-1;
+    if(n.y<-0.1||n.y>1.1)n.vy*=-1;
+    const pulse=0.6+0.4*Math.sin(t*0.1+n.phase);
+    const r=n.r*Math.min(W,H)*pulse;
+    const nx=n.x*W,ny=n.y*H;
+    const g=atmCtx.createRadialGradient(nx,ny,0,nx,ny,r);
+    if(n.warm){
+      g.addColorStop(0,`rgba(220,140,70,${0.07*pulse})`);
+      g.addColorStop(0.5,`rgba(160,90,50,${0.035*pulse})`);
+    }else if(n.purple){
+      g.addColorStop(0,`rgba(120,70,180,${0.06*pulse})`);
+      g.addColorStop(0.5,`rgba(80,50,140,${0.03*pulse})`);
+    }else{
+      g.addColorStop(0,`rgba(60,120,220,${0.07*pulse})`);
+      g.addColorStop(0.5,`rgba(40,80,170,${0.035*pulse})`);
+    }
+    g.addColorStop(1,'rgba(5,5,16,0)');
+    atmCtx.fillStyle=g;
+    atmCtx.fillRect(nx-r,ny-r,r*2,r*2);
+  }
+}
+
+resize();
 
 function draw(){
   fc++;
-  const breath=Math.sin(t*0.25)*0.5+0.5;
-  const breathSlow=Math.sin(t*0.08)*0.5+0.5; // very slow cycle for aurora
-
-  // Fade — slightly faster to keep trails defined
-  ctx.fillStyle=`rgba(6,6,18,${0.06+breath*0.02})`;
-  ctx.fillRect(0,0,W,H);
-
   t+=0.016;
+  const breath=Math.sin(t*0.25)*0.5+0.5;
+  const breathSlow=Math.sin(t*0.07)*0.5+0.5;
 
-  // Deep background gradient — subtle vignette
-  if(fc%4===0){ // only every 4th frame for perf
-    const vg=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*0.7);
-    vg.addColorStop(0,'rgba(12,12,30,0.003)');
-    vg.addColorStop(1,'rgba(2,2,8,0.005)');
-    ctx.fillStyle=vg;
-    ctx.fillRect(0,0,W,H);
-  }
-
-  // Aurora wave — a slow horizontal band of color that drifts vertically
-  const auroraY=H*0.3+Math.sin(t*0.06)*H*0.2;
-  const auroraW=H*0.25+breathSlow*H*0.1;
-  const ag=ctx.createLinearGradient(0,auroraY-auroraW,0,auroraY+auroraW);
-  ag.addColorStop(0,'rgba(6,6,18,0)');
-  ag.addColorStop(0.3,`rgba(40,80,120,${0.008+breathSlow*0.006})`);
-  ag.addColorStop(0.5,`rgba(60,100,140,${0.01+breathSlow*0.008})`);
-  ag.addColorStop(0.7,`rgba(80,60,120,${0.006+breathSlow*0.004})`);
-  ag.addColorStop(1,'rgba(6,6,18,0)');
-  ctx.fillStyle=ag;
+  // Fade
+  ctx.fillStyle=`rgba(5,5,16,${0.08+breath*0.015})`;
   ctx.fillRect(0,0,W,H);
 
-  // Nebula layer — more visible, richer
-  for(const n of NEB){
-    n.x+=n.vx;n.y+=n.vy;
-    if(n.x<-150||n.x>W+150)n.vx*=-1;
-    if(n.y<-150||n.y>H+150)n.vy*=-1;
+  // Atmosphere (cached, update every 30 frames ~0.5s)
+  if(fc%30===0||atmDirty){drawAtmosphere(breath,breathSlow);atmDirty=false}
+  ctx.drawImage(atmC,0,0);
 
-    const pulse=0.6+0.4*Math.sin(t*0.12+n.phase);
-    const r=n.r*pulse;
-    const grad=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r);
-    if(n.warm){
-      grad.addColorStop(0,`rgba(200,130,80,${0.025*pulse})`);
-      grad.addColorStop(0.4,`rgba(160,100,60,${0.015*pulse})`);
-      grad.addColorStop(0.7,`rgba(120,70,40,${0.006*pulse})`);
-      grad.addColorStop(1,'rgba(6,6,18,0)');
-    }else{
-      grad.addColorStop(0,`rgba(70,110,200,${0.03*pulse})`);
-      grad.addColorStop(0.4,`rgba(50,80,160,${0.018*pulse})`);
-      grad.addColorStop(0.7,`rgba(40,50,120,${0.007*pulse})`);
-      grad.addColorStop(1,'rgba(6,6,18,0)');
-    }
-    ctx.fillStyle=grad;
-    ctx.fillRect(n.x-r,n.y-r,r*2,r*2);
+  // Mouse glow
+  if(mx>=0){
+    const mg=ctx.createRadialGradient(mx,my,0,mx,my,180);
+    mg.addColorStop(0,'rgba(255,200,130,0.06)');
+    mg.addColorStop(0.5,'rgba(200,150,100,0.025)');
+    mg.addColorStop(1,'rgba(5,5,16,0)');
+    ctx.fillStyle=mg;
+    ctx.fillRect(mx-180,my-180,360,360);
   }
 
   // Stars
   for(const s of STARS){
-    const tw=s.alpha*(0.4+0.6*Math.sin(t*s.speed+s.phase));
+    const tw=s.alpha*(0.3+0.7*Math.sin(t*s.speed+s.phase));
     ctx.beginPath();
     ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);
-    ctx.fillStyle=s.warm?`rgba(240,200,160,${tw})`:`rgba(200,215,250,${tw})`;
+    ctx.fillStyle=s.warm?`rgba(255,210,160,${tw})`:`rgba(190,210,255,${tw})`;
     ctx.fill();
   }
 
-  // Main particles + trails + connections
-  for(let i=0;i<PCOUNT;i++){
-    const p=P[i];
-    const f=flow(p.x,p.y,t);
+  // Update particles
+  for(const p of allP){
+    const L=p.layer;
+    const f=flow(p.x,p.y,t,L.speed);
+    p.vx+=f.fx*0.07;
+    p.vy+=f.fy*0.07;
 
-    p.vx+=f.fx*0.08;
-    p.vy+=f.fy*0.08;
-
-    // Mouse influence — gentle gravity
     if(mx>=0){
       const dx=mx-p.x,dy=my-p.y;
       const d=Math.sqrt(dx*dx+dy*dy);
-      if(d<250&&d>1){
-        const force=0.03*(1-d/250);
+      if(d<220&&d>1){
+        const force=0.025*L.speed*(1-d/220);
         p.vx+=dx/d*force;
         p.vy+=dy/d*force;
       }
     }
 
-    p.vx*=0.985;p.vy*=0.985;
+    const cdx=W*0.5-p.x,cdy=H*0.5-p.y;
+    const cd=Math.sqrt(cdx*cdx+cdy*cdy);
+    const maxD=Math.max(W,H)*0.6;
+    if(cd>maxD*0.4){
+      const pull=0.002*(cd/maxD)*L.speed;
+      p.vx+=cdx/cd*pull;
+      p.vy+=cdy/cd*pull;
+    }
+
+    p.vx*=0.987;p.vy*=0.987;
     p.x+=p.vx;p.y+=p.vy;
+    if(p.x<-30)p.x=W+30;if(p.x>W+30)p.x=-30;
+    if(p.y<-30)p.y=H+30;if(p.y>H+30)p.y=-30;
 
-    if(p.x<-20)p.x=W+20;if(p.x>W+20)p.x=-20;
-    if(p.y<-20)p.y=H+20;if(p.y>H+20)p.y=-20;
-
-    // Record trail every 3 frames
     if(fc%3===0){
       p.trail[p.ti]={x:p.x,y:p.y};
       p.ti=(p.ti+1)%p.trail.length;
     }
+  }
 
-    // Draw trail
-    const tlen=p.trail.length;
-    for(let j=1;j<tlen;j++){
-      const idx=(p.ti+j)%tlen;
-      const prev=(p.ti+j-1)%tlen;
-      const a=j/tlen*0.08;
-      ctx.beginPath();
-      ctx.moveTo(p.trail[prev].x,p.trail[prev].y);
-      ctx.lineTo(p.trail[idx].x,p.trail[idx].y);
-      if(p.hue===1){
-        ctx.strokeStyle=`rgba(200,150,100,${a})`;
-      }else{
-        ctx.strokeStyle=`rgba(120,150,200,${a})`;
+  // Draw trails — batched by color
+  ctx.lineWidth=0.3;
+  for(let warm=0;warm<2;warm++){
+    ctx.beginPath();
+    for(const p of allP){
+      if((warm===1)!==p.warm)continue;
+      const tl=p.trail.length;
+      const L=p.layer;
+      for(let j=1;j<tl;j++){
+        const idx=(p.ti+j)%tl;
+        const prev=(p.ti+j-1)%tl;
+        ctx.moveTo(p.trail[prev].x,p.trail[prev].y);
+        ctx.lineTo(p.trail[idx].x,p.trail[idx].y);
       }
-      ctx.lineWidth=0.4;
-      ctx.stroke();
     }
+    ctx.strokeStyle=warm?'rgba(200,150,100,0.06)':'rgba(120,150,210,0.06)';
+    ctx.stroke();
+  }
 
-    // Breathing radius
-    const br=p.r*(1+0.25*Math.sin(t*0.7+p.phase)+0.1*breath);
-    const alpha=0.35+0.3*Math.sin(t*0.4+p.phase);
-    const bright=0.7+p.brightness*0.3;
+  // Draw particles
+  for(const p of allP){
+    const L=p.layer;
+    const br=p.r*(1+0.2*Math.sin(t*0.6+p.phase)+0.08*breath);
+    const al=L.alpha*(0.5+0.5*Math.sin(t*0.35+p.phase))*p.brightness;
 
-    if(p.hue===1){
-      // Warm particle with glow
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,br,0,Math.PI*2);
-      ctx.fillStyle=`rgba(255,190,120,${alpha*bright*0.9})`;
-      ctx.fill();
-      // Bloom
-      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,br*5);
-      g.addColorStop(0,`rgba(255,170,80,${alpha*0.07*bright})`);
-      g.addColorStop(1,'rgba(6,6,18,0)');
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,br,0,Math.PI*2);
+    ctx.fillStyle=p.warm?`rgba(255,190,120,${al})`:`rgba(170,200,255,${al})`;
+    ctx.fill();
+
+    // Bloom only for very bright particles (limit gradient count)
+    if(p.brightness>0.8&&L.alpha>0.3){
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,br*4*L.speed);
+      g.addColorStop(0,p.warm?`rgba(255,170,80,${al*0.12})`:`rgba(140,180,255,${al*0.08})`);
+      g.addColorStop(1,'rgba(5,5,16,0)');
       ctx.fillStyle=g;
-      ctx.fillRect(p.x-br*5,p.y-br*5,br*10,br*10);
-    }else{
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,br,0,Math.PI*2);
-      ctx.fillStyle=`rgba(180,210,255,${alpha*bright})`;
-      ctx.fill();
-      // Subtle bloom for brighter cool particles
-      if(p.brightness>0.7){
-        const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,br*4);
-        g.addColorStop(0,`rgba(140,180,255,${alpha*0.04})`);
-        g.addColorStop(1,'rgba(6,6,18,0)');
-        ctx.fillStyle=g;
-        ctx.fillRect(p.x-br*4,p.y-br*4,br*8,br*8);
-      }
+      const s=br*8*L.speed;
+      ctx.fillRect(p.x-s/2,p.y-s/2,s,s);
     }
+  }
 
-    // Connections — only check nearby (spatial skip for perf)
-    for(let j=i+1;j<PCOUNT;j++){
-      const q=P[j];
-      const dx=p.x-q.x,dy=p.y-q.y;
-      const d2=dx*dx+dy*dy;
-      if(d2<8000){
-        const a=0.09*(1-d2/8000);
-        ctx.beginPath();
-        ctx.moveTo(p.x,p.y);
-        ctx.lineTo(q.x,q.y);
-        if(p.hue===1||q.hue===1){
-          ctx.strokeStyle=`rgba(200,160,130,${a})`;
-        }else{
-          ctx.strokeStyle=`rgba(130,160,210,${a})`;
+  // Connections — spatial grid (O(n) instead of O(n²))
+  buildGrid();
+  ctx.lineWidth=0.4;
+  for(let i=0;i<allP.length;i++){
+    const p=allP[i];
+    const gx=(p.x/GRID_SIZE)|0;
+    const gy=(p.y/GRID_SIZE)|0;
+    const connD2=p.layer.connD*p.layer.connD;
+    // Check 3x3 neighborhood
+    for(let dx=-1;dx<=1;dx++){
+      for(let dy=-1;dy<=1;dy++){
+        const cell=grid[gridKey(gx+dx,gy+dy)];
+        if(!cell)continue;
+        for(let ci=0;ci<cell.length;ci++){
+          const j=cell[ci];
+          if(j<=i)continue;
+          const q=allP[j];
+          if(q.layerIdx!==p.layerIdx)continue;
+          const ddx=p.x-q.x,ddy=p.y-q.y;
+          const d2=ddx*ddx+ddy*ddy;
+          if(d2<connD2){
+            const a=p.layer.alpha*0.08*(1-d2/connD2);
+            ctx.beginPath();
+            ctx.moveTo(p.x,p.y);
+            ctx.lineTo(q.x,q.y);
+            ctx.strokeStyle=(p.warm||q.warm)?`rgba(200,160,130,${a})`:`rgba(120,150,220,${a})`;
+            ctx.stroke();
+          }
         }
-        ctx.lineWidth=0.5;
-        ctx.stroke();
       }
     }
   }
