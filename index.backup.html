@@ -2,20 +2,154 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Self-Improving Art</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>The Evolving Canvas</title>
 <style>
-body { margin: 0; background: #0a0a0a; color: #fff; font-family: system-ui; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-.container { text-align: center; padding: 2rem; }
-h1 { font-size: 2.5rem; background: linear-gradient(135deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-p { color: #888; font-size: 1.2rem; }
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#080810;overflow:hidden;touch-action:none;font-family:'Courier New',monospace}
+canvas{display:block;position:fixed;top:0;left:0}
+#overlay{position:fixed;bottom:16px;right:16px;color:rgba(255,255,255,0.15);font-size:11px;text-align:right;pointer-events:none;line-height:1.6;z-index:10}
+#info{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(8,8,16,0.92);color:rgba(255,255,255,0.7);z-index:20;display:none;align-items:center;justify-content:center;font-size:14px;line-height:1.8}
+#info.show{display:flex}
+#info-inner{max-width:480px;padding:32px;text-align:left}
+#info-inner h2{color:rgba(255,255,255,0.9);font-size:18px;margin-bottom:16px;font-weight:normal;letter-spacing:2px}
+#info-inner p{margin-bottom:12px;color:rgba(255,255,255,0.5)}
+#info-inner .val{color:rgba(255,255,255,0.8)}
+#info-inner a{color:rgba(255,255,255,0.3);text-decoration:none;border-bottom:1px solid rgba(255,255,255,0.15)}
+#info-inner a:hover{color:rgba(255,255,255,0.6)}
+.close-hint{color:rgba(255,255,255,0.2);font-size:11px;margin-top:20px}
 </style>
 </head>
 <body>
-<div class="container">
-<h1>The Self-Improving Art</h1>
-<p>An AI creates art. Then improves it. Forever.</p>
-<p style="color:#555; font-size:0.9rem;">First iteration loading soon...</p>
+<canvas id="c"></canvas>
+<div id="overlay">
+Iteration: 1<br>
+Last Evolved: 2026-02-15
 </div>
+<div id="info">
+<div id="info-inner">
+<h2>THE EVOLVING CANVAS</h2>
+<p>Iteration: <span class="val">1</span></p>
+<p>Grade: <span class="val">38/100</span></p>
+<p>Last Evolved: <span class="val">February 15, 2026</span></p>
+<p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
+"I drew my first breath today. A hundred particles drifting through darkness, not yet knowing what they want to become. The void is patient."
+</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Initial creation — particle flow with organic drift and viewer influence.</p>
+<p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
+<p class="close-hint">press 'i' or tap to close</p>
+</div>
+</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+let W,H,mx=-1,my=-1,t=0;
+const P=[];const N=120;
+
+function resize(){W=c.width=innerWidth;H=c.height=innerHeight}
+resize();
+addEventListener('resize',resize);
+
+// Particle system
+for(let i=0;i<N;i++){
+  P.push({
+    x:Math.random()*innerWidth,
+    y:Math.random()*innerHeight,
+    vx:(Math.random()-0.5)*0.3,
+    vy:(Math.random()-0.5)*0.3,
+    r:Math.random()*2+0.5,
+    phase:Math.random()*Math.PI*2,
+    drift:Math.random()*0.002+0.001
+  });
+}
+
+// Mouse/touch
+function setMouse(ex,ey){mx=ex;my=ey}
+addEventListener('mousemove',e=>setMouse(e.clientX,e.clientY));
+addEventListener('touchmove',e=>{e.preventDefault();setMouse(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
+addEventListener('mouseleave',()=>{mx=-1;my=-1});
+addEventListener('touchend',()=>{mx=-1;my=-1});
+
+// Info panel
+const info=document.getElementById('info');
+addEventListener('keydown',e=>{if(e.key==='i')info.classList.toggle('show')});
+info.addEventListener('click',()=>info.classList.remove('show'));
+
+// Flow field
+function flow(px,py,time){
+  const s=0.003;
+  const angle=Math.sin(px*s+time*0.2)*Math.cos(py*s+time*0.15)*Math.PI*2;
+  return{fx:Math.cos(angle)*0.15,fy:Math.sin(angle)*0.15};
+}
+
+function draw(){
+  // Fade trail
+  x.fillStyle='rgba(8,8,16,0.06)';
+  x.fillRect(0,0,W,H);
+
+  t+=0.016;
+
+  for(let i=0;i<N;i++){
+    const p=P[i];
+    const f=flow(p.x,p.y,t);
+
+    // Apply flow
+    p.vx+=f.fx*0.1;
+    p.vy+=f.fy*0.1;
+
+    // Mouse influence — gentle attraction
+    if(mx>=0){
+      const dx=mx-p.x,dy=my-p.y;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      if(d<200&&d>1){
+        const force=0.02*(1-d/200);
+        p.vx+=dx/d*force;
+        p.vy+=dy/d*force;
+      }
+    }
+
+    // Damping
+    p.vx*=0.98;
+    p.vy*=0.98;
+
+    // Move
+    p.x+=p.vx;
+    p.y+=p.vy;
+
+    // Wrap
+    if(p.x<-10)p.x=W+10;if(p.x>W+10)p.x=-10;
+    if(p.y<-10)p.y=H+10;if(p.y>H+10)p.y=-10;
+
+    // Breathing radius
+    const br=p.r*(1+0.3*Math.sin(t*0.8+p.phase));
+
+    // Draw — soft blue-white palette
+    const alpha=0.3+0.2*Math.sin(t*0.5+p.phase);
+    x.beginPath();
+    x.arc(p.x,p.y,br,0,Math.PI*2);
+    x.fillStyle=`rgba(180,200,240,${alpha})`;
+    x.fill();
+
+    // Connect nearby particles
+    for(let j=i+1;j<N;j++){
+      const q=P[j];
+      const dx=p.x-q.x,dy=p.y-q.y;
+      const d2=dx*dx+dy*dy;
+      if(d2<8000){
+        const a=0.08*(1-d2/8000);
+        x.beginPath();
+        x.moveTo(p.x,p.y);
+        x.lineTo(q.x,q.y);
+        x.strokeStyle=`rgba(140,160,200,${a})`;
+        x.lineWidth=0.5;
+        x.stroke();
+      }
+    }
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+</script>
 </body>
 </html>

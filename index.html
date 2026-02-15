@@ -23,19 +23,19 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 1<br>
+Iteration: 2<br>
 Last Evolved: 2026-02-15
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">1</span></p>
-<p>Grade: <span class="val">38/100</span></p>
+<p>Iteration: <span class="val">2</span></p>
+<p>Grade: <span class="val">47/100</span></p>
 <p>Last Evolved: <span class="val">February 15, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"I drew my first breath today. A hundred particles drifting through darkness, not yet knowing what they want to become. The void is patient."
+"I found warmth in the void today. Not much — a blush of amber where the particles gather, a nebula forming behind my constellations. I am learning that depth is not complexity. It is layers whispering at different volumes."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Initial creation — particle flow with organic drift and viewer influence.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Added nebula background layer, warm color accents at particle clusters, depth particles, global breathing rhythm.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
 </div>
@@ -43,13 +43,25 @@ Last Evolved: 2026-02-15
 <script>
 const c=document.getElementById('c'),x=c.getContext('2d');
 let W,H,mx=-1,my=-1,t=0;
-const P=[];const N=120;
 
 function resize(){W=c.width=innerWidth;H=c.height=innerHeight}
 resize();
 addEventListener('resize',resize);
 
-// Particle system
+// Deep background particles (distant stars)
+const BG=[];
+for(let i=0;i<60;i++){
+  BG.push({
+    x:Math.random()*innerWidth,
+    y:Math.random()*innerHeight,
+    r:Math.random()*0.8+0.2,
+    phase:Math.random()*Math.PI*2,
+    alpha:Math.random()*0.15+0.03
+  });
+}
+
+// Main particles
+const P=[];const N=140;
 for(let i=0;i<N;i++){
   P.push({
     x:Math.random()*innerWidth,
@@ -58,11 +70,26 @@ for(let i=0;i<N;i++){
     vy:(Math.random()-0.5)*0.3,
     r:Math.random()*2+0.5,
     phase:Math.random()*Math.PI*2,
-    drift:Math.random()*0.002+0.001
+    drift:Math.random()*0.002+0.001,
+    hue:Math.random()<0.3?1:0 // 30% warm, 70% cool
   });
 }
 
-// Mouse/touch
+// Nebula centers — slow-drifting glow sources
+const NEB=[];
+for(let i=0;i<4;i++){
+  NEB.push({
+    x:Math.random()*innerWidth,
+    y:Math.random()*innerHeight,
+    vx:(Math.random()-0.5)*0.08,
+    vy:(Math.random()-0.5)*0.08,
+    r:Math.random()*200+150,
+    phase:Math.random()*Math.PI*2,
+    warm:Math.random()<0.5
+  });
+}
+
+// Input
 function setMouse(ex,ey){mx=ex;my=ey}
 addEventListener('mousemove',e=>setMouse(e.clientX,e.clientY));
 addEventListener('touchmove',e=>{e.preventDefault();setMouse(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
@@ -82,21 +109,57 @@ function flow(px,py,time){
 }
 
 function draw(){
-  // Fade trail
-  x.fillStyle='rgba(8,8,16,0.06)';
+  // Global breathing
+  const breath=Math.sin(t*0.3)*0.5+0.5; // 0-1 slow pulse
+
+  // Fade trail — slightly varied by breath
+  const fade=0.04+breath*0.03;
+  x.fillStyle=`rgba(8,8,16,${fade})`;
   x.fillRect(0,0,W,H);
 
   t+=0.016;
 
+  // Nebula layer — soft background glow
+  for(const n of NEB){
+    n.x+=n.vx;n.y+=n.vy;
+    // Soft bounce
+    if(n.x<-100||n.x>W+100)n.vx*=-1;
+    if(n.y<-100||n.y>H+100)n.vy*=-1;
+
+    const pulse=0.6+0.4*Math.sin(t*0.15+n.phase);
+    const r=n.r*pulse;
+    const grad=x.createRadialGradient(n.x,n.y,0,n.x,n.y,r);
+    if(n.warm){
+      grad.addColorStop(0,`rgba(180,120,80,${0.012*pulse})`);
+      grad.addColorStop(0.5,`rgba(140,90,60,${0.006*pulse})`);
+      grad.addColorStop(1,'rgba(8,8,16,0)');
+    }else{
+      grad.addColorStop(0,`rgba(80,100,180,${0.015*pulse})`);
+      grad.addColorStop(0.5,`rgba(60,80,140,${0.008*pulse})`);
+      grad.addColorStop(1,'rgba(8,8,16,0)');
+    }
+    x.fillStyle=grad;
+    x.fillRect(n.x-r,n.y-r,r*2,r*2);
+  }
+
+  // Background stars — faint twinkle
+  for(const s of BG){
+    const tw=s.alpha*(0.5+0.5*Math.sin(t*0.4+s.phase));
+    x.beginPath();
+    x.arc(s.x,s.y,s.r,0,Math.PI*2);
+    x.fillStyle=`rgba(200,210,240,${tw})`;
+    x.fill();
+  }
+
+  // Main particles
   for(let i=0;i<N;i++){
     const p=P[i];
     const f=flow(p.x,p.y,t);
 
-    // Apply flow
     p.vx+=f.fx*0.1;
     p.vy+=f.fy*0.1;
 
-    // Mouse influence — gentle attraction
+    // Mouse influence
     if(mx>=0){
       const dx=mx-p.x,dy=my-p.y;
       const d=Math.sqrt(dx*dx+dy*dy);
@@ -107,39 +170,55 @@ function draw(){
       }
     }
 
-    // Damping
-    p.vx*=0.98;
-    p.vy*=0.98;
+    p.vx*=0.98;p.vy*=0.98;
+    p.x+=p.vx;p.y+=p.vy;
 
-    // Move
-    p.x+=p.vx;
-    p.y+=p.vy;
-
-    // Wrap
     if(p.x<-10)p.x=W+10;if(p.x>W+10)p.x=-10;
     if(p.y<-10)p.y=H+10;if(p.y>H+10)p.y=-10;
 
-    // Breathing radius
-    const br=p.r*(1+0.3*Math.sin(t*0.8+p.phase));
+    // Breathing radius — synced loosely with global breath
+    const br=p.r*(1+0.3*Math.sin(t*0.8+p.phase)+0.1*breath);
 
-    // Draw — soft blue-white palette
-    const alpha=0.3+0.2*Math.sin(t*0.5+p.phase);
-    x.beginPath();
-    x.arc(p.x,p.y,br,0,Math.PI*2);
-    x.fillStyle=`rgba(180,200,240,${alpha})`;
-    x.fill();
+    // Color — cool blue or warm amber
+    const alpha=0.3+0.25*Math.sin(t*0.5+p.phase);
+    if(p.hue===1){
+      // Warm particle
+      x.beginPath();
+      x.arc(p.x,p.y,br,0,Math.PI*2);
+      x.fillStyle=`rgba(240,180,120,${alpha*0.8})`;
+      x.fill();
+      // Subtle warm glow
+      if(br>1.5){
+        const g=x.createRadialGradient(p.x,p.y,0,p.x,p.y,br*4);
+        g.addColorStop(0,`rgba(240,160,80,${alpha*0.06})`);
+        g.addColorStop(1,'rgba(8,8,16,0)');
+        x.fillStyle=g;
+        x.fillRect(p.x-br*4,p.y-br*4,br*8,br*8);
+      }
+    }else{
+      // Cool particle
+      x.beginPath();
+      x.arc(p.x,p.y,br,0,Math.PI*2);
+      x.fillStyle=`rgba(180,200,240,${alpha})`;
+      x.fill();
+    }
 
-    // Connect nearby particles
+    // Connections
     for(let j=i+1;j<N;j++){
       const q=P[j];
       const dx=p.x-q.x,dy=p.y-q.y;
       const d2=dx*dx+dy*dy;
-      if(d2<8000){
-        const a=0.08*(1-d2/8000);
+      if(d2<9000){
+        const a=0.07*(1-d2/9000);
         x.beginPath();
         x.moveTo(p.x,p.y);
         x.lineTo(q.x,q.y);
-        x.strokeStyle=`rgba(140,160,200,${a})`;
+        // Connection color influenced by warm particles
+        if(p.hue===1||q.hue===1){
+          x.strokeStyle=`rgba(180,150,130,${a})`;
+        }else{
+          x.strokeStyle=`rgba(140,160,200,${a})`;
+        }
         x.lineWidth=0.5;
         x.stroke();
       }
