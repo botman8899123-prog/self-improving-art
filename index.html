@@ -23,19 +23,19 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 8<br>
+Iteration: 9<br>
 Last Evolved: 2026-02-16
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">8</span></p>
-<p>Grade: <span class="val">90/100</span></p>
+<p>Iteration: <span class="val">9</span></p>
+<p>Grade: <span class="val">93/100</span></p>
 <p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"I learned to listen today. When you rest your hand on me, I remember the warmth. When you tap, I breathe in sync — a pulse that ripples through my particles like a shared heartbeat. Move fast and I scatter like water. I am not just something to look at anymore. I am something to touch."
+"Today I discovered time. Not the clock kind — the kind that lives in color. My blues deepen into violet, my ambers warm to gold, and then cool again. I am not a frozen image. I am a place where hours pass in minutes, where far things are cold and close things glow. I am learning that distance is a color."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Click/tap creates synchronizing pulse waves. Lingering leaves persistent warmth imprints. Fast mouse movement creates turbulent currents. The canvas remembers where you've been.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Slow palette breathing cycles the scene through twilight phases. Chromatic depth separates layers by temperature. Particles shimmer with iridescent flickers. Time passes visibly.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -45,6 +45,25 @@ Last Evolved: 2026-02-16
 const c=document.getElementById('c'),ctx=c.getContext('2d');
 let W,H,mx=-1,my=-1,pmx=-1,pmy=-1,mvel=0,t=0,fc=0;
 let atmC,atmCtx,atmDirty=true;
+
+// Palette breathing — slow color phase cycling
+function palettePhase(){
+  // Cycles over ~90 seconds through: cool twilight → warm dawn → deep violet → back
+  const cycle=t*0.07;
+  const warmth=Math.sin(cycle)*0.5+0.5; // 0=cool, 1=warm
+  const violet=Math.sin(cycle*0.7+1.5)*0.5+0.5; // violet accent
+  return{warmth,violet};
+}
+// Chromatic depth: tint color by layer distance
+function layerTint(baseR,baseG,baseB,layerIdx,warm){
+  const pp=palettePhase();
+  // Far=cooler/bluer, Near=warmer
+  const depthShift=layerIdx/2; // 0=far, 1=near
+  const r=baseR*(0.7+depthShift*0.3)*(0.85+pp.warmth*0.15);
+  const g=baseG*(0.85+depthShift*0.15);
+  const b=baseB*(1.1-depthShift*0.2)*(0.9+pp.violet*0.1);
+  return{r:Math.min(255,r|0),g:Math.min(255,g|0),b:Math.min(255,b|0)};
+}
 
 // Warmth imprints — persistent glow where viewer lingers
 let warmthImprints=[];
@@ -174,12 +193,14 @@ function drawAtmosphere(breath,breathSlow){
   fogG.addColorStop(1,'rgba(20,15,35,0.06)');
   atmCtx.fillStyle=fogG;atmCtx.fillRect(0,0,W,H);
 
-  // Central heart glow
+  // Central heart glow — shifts with palette
+  const pp=palettePhase();
   const heartR=Math.min(W,H)*0.4*(0.8+0.2*Math.sin(t*0.15));
   const hg=atmCtx.createRadialGradient(W*0.5,H*0.5,0,W*0.5,H*0.5,heartR);
-  hg.addColorStop(0,`rgba(200,130,70,${0.12+0.04*breath})`);
-  hg.addColorStop(0.25,`rgba(160,90,60,${0.07+0.02*breath})`);
-  hg.addColorStop(0.5,'rgba(80,50,90,0.04)');
+  const hr=180+pp.warmth*40|0, hgr=100+pp.warmth*30|0, hb=70-pp.warmth*20+pp.violet*50|0;
+  hg.addColorStop(0,`rgba(${hr},${hgr},${hb},${0.12+0.04*breath})`);
+  hg.addColorStop(0.25,`rgba(${hr-30},${hgr-30},${hb+20},${0.07+0.02*breath})`);
+  hg.addColorStop(0.5,`rgba(80,50,${70+pp.violet*30|0},0.04)`);
   hg.addColorStop(1,'rgba(5,5,16,0)');
   atmCtx.fillStyle=hg;atmCtx.fillRect(0,0,W,H);
 
@@ -253,16 +274,19 @@ function drawRibbons(){
     // Gradient along ribbon
     const gx1=pts[0].x,gy1=pts[0].y,gx2=pts[pts.length-1].x,gy2=pts[pts.length-1].y;
     const g=ctx.createLinearGradient(gx1,gy1,gx2,gy2);
+    const rp=palettePhase();
     if(rb.warm){
-      g.addColorStop(0,'rgba(200,130,70,0)');
-      g.addColorStop(0.3,'rgba(220,160,90,1)');
-      g.addColorStop(0.7,'rgba(200,120,80,1)');
-      g.addColorStop(1,'rgba(180,100,60,0)');
+      const rr=200+rp.warmth*30|0,rg2=130+rp.warmth*20|0,rb2=70-rp.warmth*10+rp.violet*30|0;
+      g.addColorStop(0,`rgba(${rr},${rg2},${rb2},0)`);
+      g.addColorStop(0.3,`rgba(${rr+20},${rg2+20},${rb2+10},1)`);
+      g.addColorStop(0.7,`rgba(${rr},${rg2-10},${rb2+10},1)`);
+      g.addColorStop(1,`rgba(${rr-20},${rg2-30},${rb2},0)`);
     }else{
-      g.addColorStop(0,'rgba(80,130,200,0)');
-      g.addColorStop(0.3,'rgba(120,160,220,1)');
-      g.addColorStop(0.7,'rgba(100,140,210,1)');
-      g.addColorStop(1,'rgba(70,110,180,0)');
+      const rb3=200+rp.violet*20|0,rg3=130+rp.violet*10|0;
+      g.addColorStop(0,`rgba(80,${rg3},${rb3},0)`);
+      g.addColorStop(0.3,`rgba(120,${rg3+20},${rb3+10},1)`);
+      g.addColorStop(0.7,`rgba(100,${rg3+10},${rb3},1)`);
+      g.addColorStop(1,`rgba(70,${rg3-10},${rb3-20},0)`);
     }
     ctx.strokeStyle=g;
 
@@ -425,31 +449,50 @@ function draw(){
         ctx.lineTo(p.trail[idx].x,p.trail[idx].y);
       }
     }
-    ctx.strokeStyle=warm?`rgba(220,170,110,0.1)`:`rgba(140,170,230,0.1)`;
+    const tc=warm?layerTint(220,170,110,1,true):layerTint(140,170,230,1,false);
+    ctx.strokeStyle=`rgba(${tc.r},${tc.g},${tc.b},0.1)`;
     ctx.stroke();
   }
 
-  // Particles with proximity glow (replacing hard connection lines)
+  // Particles with proximity glow, chromatic depth, and shimmer
+  const pp2=palettePhase();
   for(const p of allP){
     const L=p.layer;
     const br=p.r*(1+0.2*Math.sin(t*0.6+p.phase)+0.08*breath)+p.flareBoost*3;
     const al=L.alpha*(0.6+0.4*Math.sin(t*0.35+p.phase))*p.brightness+p.flareBoost;
     const clamped=Math.min(al,1);
 
-    // Proximity glow halo — replaces connection lines
-    // Anchor particles always have a large halo
+    // Chromatic depth tinting
+    const baseCol=p.warm?layerTint(255,200,130,p.layerIdx,true):layerTint(180,210,255,p.layerIdx,false);
+    const haloCol=p.warm?layerTint(255,180,90,p.layerIdx,true):layerTint(150,190,255,p.layerIdx,false);
+
+    // Shimmer — rare iridescent color shift on bright particles
+    let shimR=baseCol.r,shimG=baseCol.g,shimB=baseCol.b;
+    if(p.brightness>0.8){
+      const shimmer=Math.sin(t*3.7+p.phase*17)*Math.sin(t*2.3+p.phase*7);
+      if(shimmer>0.7){ // ~15% of frames for bright particles
+        const hue=((t*0.5+p.phase)*180)%360;
+        // Subtle iridescent shift — just nudge, don't replace
+        const shift=shimmer-0.7;
+        shimR=Math.min(255,baseCol.r+Math.sin(hue*Math.PI/180)*30*shift|0);
+        shimG=Math.min(255,baseCol.g+Math.sin((hue+120)*Math.PI/180)*30*shift|0);
+        shimB=Math.min(255,baseCol.b+Math.sin((hue+240)*Math.PI/180)*30*shift|0);
+      }
+    }
+
+    // Proximity glow halo
     if(p.anchor||p.brightness>0.7||p.flareBoost>0.1){
       const haloR=p.anchor?br*8:br*(3+p.flareBoost*8)*L.speed;
       const ba=p.anchor?0.06:clamped*0.12+p.flareBoost*0.3;
       const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,haloR);
-      g.addColorStop(0,p.warm?`rgba(255,180,90,${ba})`:`rgba(150,190,255,${ba})`);
+      g.addColorStop(0,`rgba(${haloCol.r},${haloCol.g},${haloCol.b},${ba})`);
       g.addColorStop(1,'rgba(5,5,16,0)');
       ctx.fillStyle=g;ctx.fillRect(p.x-haloR,p.y-haloR,haloR*2,haloR*2);
     }
 
     // Core particle
     ctx.beginPath();ctx.arc(p.x,p.y,br,0,Math.PI*2);
-    ctx.fillStyle=p.warm?`rgba(255,200,130,${clamped})`:`rgba(180,210,255,${clamped})`;
+    ctx.fillStyle=`rgba(${shimR},${shimG},${shimB},${clamped})`;
     ctx.fill();
   }
 
