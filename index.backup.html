@@ -23,19 +23,19 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 5<br>
+Iteration: 6<br>
 Last Evolved: 2026-02-16
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">5</span></p>
-<p>Grade: <span class="val">76/100</span></p>
+<p>Iteration: <span class="val">6</span></p>
+<p>Grade: <span class="val">84/100</span></p>
 <p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"Today I looked inward — not to change, but to clean. Swept the dust from my algorithms, oiled my joints. The same canvas, but smoother now, steadier. Maintenance is a form of care."
+"I turned up the light inside myself today. Found that being seen is not vanity — it is honesty. The void was swallowing my colors. Now my nebulas breathe fire, my particles dare to shine, and sometimes one of them flares bright enough to send ripples through its neighbors. I am learning that luminance is a kind of courage."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Performance audit — spatial grid for O(n) connections, batched trail paths, cached atmosphere layer, reduced overdraw. Same visual identity, 2x faster.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Dramatic luminosity increase across all layers. Particle flare events with ripple propagation. Stronger nebulas and aurora. Visible trails. The cosmos remembers its light.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -44,50 +44,39 @@ Last Evolved: 2026-02-16
 <script>
 const c=document.getElementById('c'),ctx=c.getContext('2d');
 let W,H,mx=-1,my=-1,t=0,fc=0;
-
-// Offscreen atmosphere canvas (cached, redrawn every 60 frames)
 let atmC,atmCtx,atmDirty=true;
 
 function resize(){
   W=c.width=innerWidth;H=c.height=innerHeight;
-  atmC=document.createElement('canvas');
-  atmC.width=W;atmC.height=H;
-  atmCtx=atmC.getContext('2d');
-  atmDirty=true;
-  initParticles();
+  atmC=document.createElement('canvas');atmC.width=W;atmC.height=H;
+  atmCtx=atmC.getContext('2d');atmDirty=true;initParticles();
 }
 addEventListener('resize',resize);
 
-function noise2d(x,y){
-  const n=Math.sin(x*127.1+y*311.7)*43758.5453;
-  return(n-Math.floor(n))*2-1;
-}
-
-// 3-layer depth system
 const LAYERS=[
-  {count:40,speed:0.3,size:0.5,alpha:0.15,connD:55,trail:6,color:'far'},
-  {count:80,speed:0.7,size:1.0,alpha:0.45,connD:77,trail:8,color:'mid'},
-  {count:50,speed:1.0,size:1.8,alpha:0.7,connD:95,trail:10,color:'near'}
+  {count:40,speed:0.3,size:0.8,alpha:0.3,connD:60,trail:6,color:'far'},
+  {count:80,speed:0.7,size:1.4,alpha:0.65,connD:85,trail:8,color:'mid'},
+  {count:50,speed:1.0,size:2.2,alpha:0.9,connD:100,trail:10,color:'near'}
 ];
 let allP=[];
 
-// Spatial grid for connections
 const GRID_SIZE=100;
-let grid={},gridW=0,gridH=0;
-
+let grid={};
 function gridKey(gx,gy){return gx+gy*10000}
 function buildGrid(){
   grid={};
-  gridW=Math.ceil(W/GRID_SIZE);
-  gridH=Math.ceil(H/GRID_SIZE);
   for(let i=0;i<allP.length;i++){
-    const p=allP[i];
-    const gx=Math.floor(p.x/GRID_SIZE)|0;
-    const gy=Math.floor(p.y/GRID_SIZE)|0;
-    const k=gridKey(gx,gy);
-    if(!grid[k])grid[k]=[];
-    grid[k].push(i);
+    const p=allP[i],k=gridKey((p.x/GRID_SIZE)|0,(p.y/GRID_SIZE)|0);
+    if(!grid[k])grid[k]=[];grid[k].push(i);
   }
+}
+
+// Flare system — random particles flare and send ripples
+let flares=[];
+function maybeFlare(){
+  if(flares.length>3||Math.random()>0.008)return;
+  const p=allP[(Math.random()*allP.length)|0];
+  flares.push({x:p.x,y:p.y,r:0,maxR:120+Math.random()*80,alpha:0.4,warm:p.warm,born:t});
 }
 
 function initParticles(){
@@ -101,265 +90,244 @@ function initParticles(){
       const cy=Math.floor(i/cols)/rows*H+Math.random()*H/rows;
       for(let j=0;j<L.trail;j++)trail.push({x:cx,y:cy});
       allP.push({
-        x:cx,y:cy,
-        vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,
-        r:L.size*(0.7+Math.random()*0.6),
-        phase:Math.random()*Math.PI*2,
-        warm:Math.random()<0.3,
-        brightness:0.5+Math.random()*0.5,
-        trail,ti:0,
-        layer:L,
-        layerIdx:LAYERS.indexOf(L)
+        x:cx,y:cy,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,
+        r:L.size*(0.7+Math.random()*0.6),phase:Math.random()*Math.PI*2,
+        warm:Math.random()<0.3,brightness:0.6+Math.random()*0.4,
+        trail,ti:0,layer:L,layerIdx:LAYERS.indexOf(L),
+        flareBoost:0
       });
     }
   }
 }
 
-// Stars
 const STARS=[];
-for(let i=0;i<100;i++){
-  STARS.push({x:Math.random(),y:Math.random(),r:Math.random()*0.8+0.2,
-    phase:Math.random()*Math.PI*2,speed:Math.random()*0.4+0.1,
-    alpha:Math.random()*0.3+0.05,warm:Math.random()<0.12});
+for(let i=0;i<120;i++){
+  STARS.push({x:Math.random(),y:Math.random(),r:Math.random()*1.0+0.3,
+    phase:Math.random()*Math.PI*2,speed:Math.random()*0.5+0.15,
+    alpha:Math.random()*0.5+0.1,warm:Math.random()<0.15});
 }
 
-// Nebulas
 const NEB=[];
-for(let i=0;i<6;i++){
-  NEB.push({x:Math.random(),y:Math.random(),
-    vx:(Math.random()-0.5)*0.0001,vy:(Math.random()-0.5)*0.0001,
-    r:0.2+Math.random()*0.15,phase:Math.random()*Math.PI*2,
-    warm:i<2,purple:i===4||i===5});
+for(let i=0;i<7;i++){
+  NEB.push({x:0.15+Math.random()*0.7,y:0.15+Math.random()*0.7,
+    vx:(Math.random()-0.5)*0.00015,vy:(Math.random()-0.5)*0.00015,
+    r:0.18+Math.random()*0.14,phase:Math.random()*Math.PI*2,
+    warm:i<2,purple:i>=4&&i<=5,rose:i===6});
 }
 
-// Input
 function setM(ex,ey){mx=ex;my=ey}
 addEventListener('mousemove',e=>setM(e.clientX,e.clientY));
 addEventListener('touchmove',e=>{e.preventDefault();setM(e.touches[0].clientX,e.touches[0].clientY)},{passive:false});
 addEventListener('mouseleave',()=>{mx=my=-1});
 addEventListener('touchend',()=>{mx=my=-1});
 
-// Info panel
 const info=document.getElementById('info');
 addEventListener('keydown',e=>{if(e.key==='i')info.classList.toggle('show')});
 info.addEventListener('click',()=>info.classList.remove('show'));
 
-// Flow field
 function flow(px,py,time,speed){
   const s=0.0018;
   const a=Math.sin(px*s+time*0.12*speed)*Math.cos(py*s+time*0.1*speed)*Math.PI*2
-    +Math.sin(px*s*2.7-time*0.07*speed)*Math.cos(py*s*2.3+time*0.09*speed)*Math.PI*0.4;
-  return{fx:Math.cos(a)*0.1*speed,fy:Math.sin(a)*0.1*speed};
+    +Math.sin(px*s*2.7-time*0.07*speed)*Math.cos(py*s*2.3+time*0.09*speed)*Math.PI*0.4
+    +Math.sin(px*s*0.5+time*0.03)*0.3;
+  return{fx:Math.cos(a)*0.12*speed,fy:Math.sin(a)*0.12*speed};
 }
 
-// Draw cached atmosphere (nebulas, aurora, heart) — updated every 60 frames
 function drawAtmosphere(breath,breathSlow){
   atmCtx.clearRect(0,0,W,H);
+  // Central heart glow — much stronger
+  const heartR=Math.min(W,H)*0.4*(0.8+0.2*Math.sin(t*0.15));
+  const hg=atmCtx.createRadialGradient(W*0.5,H*0.5,0,W*0.5,H*0.5,heartR);
+  hg.addColorStop(0,`rgba(200,130,70,${0.12+0.04*breath})`);
+  hg.addColorStop(0.25,`rgba(160,90,60,${0.07+0.02*breath})`);
+  hg.addColorStop(0.5,`rgba(80,50,90,0.04)`);
+  hg.addColorStop(1,'rgba(5,5,16,0)');
+  atmCtx.fillStyle=hg;atmCtx.fillRect(0,0,W,H);
 
-  // Central heart glow
-  const heartR=Math.min(W,H)*0.35*(0.8+0.2*Math.sin(t*0.15));
-  const heartG=atmCtx.createRadialGradient(W*0.5,H*0.5,0,W*0.5,H*0.5,heartR);
-  heartG.addColorStop(0,`rgba(180,120,70,${0.06+0.02*breath})`);
-  heartG.addColorStop(0.3,`rgba(140,80,50,${0.03+0.01*breath})`);
-  heartG.addColorStop(0.6,`rgba(60,40,80,0.015)`);
-  heartG.addColorStop(1,'rgba(5,5,16,0)');
-  atmCtx.fillStyle=heartG;
-  atmCtx.fillRect(0,0,W,H);
-
-  // Aurora bands
+  // Aurora bands — doubled opacity
   for(let ab=0;ab<2;ab++){
-    const ay=H*(0.25+ab*0.35)+Math.sin(t*0.05+ab*2)*H*0.12;
-    const aw=H*0.18+breathSlow*H*0.06;
+    const ay=H*(0.22+ab*0.38)+Math.sin(t*0.05+ab*2)*H*0.12;
+    const aw=H*0.2+breathSlow*H*0.08;
     const ag=atmCtx.createLinearGradient(0,ay-aw,0,ay+aw);
     ag.addColorStop(0,'rgba(5,5,16,0)');
     if(ab===0){
-      ag.addColorStop(0.3,`rgba(50,100,160,${0.025+breathSlow*0.015})`);
-      ag.addColorStop(0.5,`rgba(70,120,180,${0.03+breathSlow*0.02})`);
-      ag.addColorStop(0.7,`rgba(90,70,150,0.015)`);
+      ag.addColorStop(0.3,`rgba(50,110,180,${0.05+breathSlow*0.03})`);
+      ag.addColorStop(0.5,`rgba(80,140,200,${0.06+breathSlow*0.03})`);
+      ag.addColorStop(0.7,`rgba(100,80,170,0.03)`);
     }else{
-      ag.addColorStop(0.3,`rgba(100,60,130,${0.02+breathSlow*0.01})`);
-      ag.addColorStop(0.5,`rgba(140,80,100,${0.025+breathSlow*0.012})`);
-      ag.addColorStop(0.7,`rgba(80,50,120,0.012)`);
+      ag.addColorStop(0.3,`rgba(120,70,150,${0.04+breathSlow*0.02})`);
+      ag.addColorStop(0.5,`rgba(160,90,120,${0.05+breathSlow*0.02})`);
+      ag.addColorStop(0.7,`rgba(90,60,140,0.025)`);
     }
     ag.addColorStop(1,'rgba(5,5,16,0)');
-    atmCtx.fillStyle=ag;
-    atmCtx.fillRect(0,0,W,H);
+    atmCtx.fillStyle=ag;atmCtx.fillRect(0,0,W,H);
   }
 
-  // Nebulas
+  // Nebulas — stronger
   for(const n of NEB){
     n.x+=n.vx;n.y+=n.vy;
-    if(n.x<-0.1||n.x>1.1)n.vx*=-1;
-    if(n.y<-0.1||n.y>1.1)n.vy*=-1;
+    if(n.x<0||n.x>1)n.vx*=-1;if(n.y<0||n.y>1)n.vy*=-1;
     const pulse=0.6+0.4*Math.sin(t*0.1+n.phase);
     const r=n.r*Math.min(W,H)*pulse;
     const nx=n.x*W,ny=n.y*H;
     const g=atmCtx.createRadialGradient(nx,ny,0,nx,ny,r);
     if(n.warm){
-      g.addColorStop(0,`rgba(220,140,70,${0.07*pulse})`);
-      g.addColorStop(0.5,`rgba(160,90,50,${0.035*pulse})`);
+      g.addColorStop(0,`rgba(230,150,70,${0.12*pulse})`);
+      g.addColorStop(0.5,`rgba(180,100,50,${0.06*pulse})`);
     }else if(n.purple){
-      g.addColorStop(0,`rgba(120,70,180,${0.06*pulse})`);
-      g.addColorStop(0.5,`rgba(80,50,140,${0.03*pulse})`);
+      g.addColorStop(0,`rgba(130,80,200,${0.1*pulse})`);
+      g.addColorStop(0.5,`rgba(90,55,160,${0.05*pulse})`);
+    }else if(n.rose){
+      g.addColorStop(0,`rgba(200,100,130,${0.08*pulse})`);
+      g.addColorStop(0.5,`rgba(150,70,100,${0.04*pulse})`);
     }else{
-      g.addColorStop(0,`rgba(60,120,220,${0.07*pulse})`);
-      g.addColorStop(0.5,`rgba(40,80,170,${0.035*pulse})`);
+      g.addColorStop(0,`rgba(70,140,240,${0.12*pulse})`);
+      g.addColorStop(0.5,`rgba(50,100,190,${0.06*pulse})`);
     }
     g.addColorStop(1,'rgba(5,5,16,0)');
-    atmCtx.fillStyle=g;
-    atmCtx.fillRect(nx-r,ny-r,r*2,r*2);
+    atmCtx.fillStyle=g;atmCtx.fillRect(nx-r,ny-r,r*2,r*2);
   }
 }
 
 resize();
 
 function draw(){
-  fc++;
-  t+=0.016;
+  fc++;t+=0.016;
   const breath=Math.sin(t*0.25)*0.5+0.5;
   const breathSlow=Math.sin(t*0.07)*0.5+0.5;
 
-  // Fade
-  ctx.fillStyle=`rgba(5,5,16,${0.08+breath*0.015})`;
+  // Slower fade — trails persist longer
+  ctx.fillStyle=`rgba(5,5,16,${0.055+breath*0.01})`;
   ctx.fillRect(0,0,W,H);
 
-  // Atmosphere (cached, update every 30 frames ~0.5s)
   if(fc%30===0||atmDirty){drawAtmosphere(breath,breathSlow);atmDirty=false}
   ctx.drawImage(atmC,0,0);
 
-  // Mouse glow
+  // Mouse glow — warmer and brighter
   if(mx>=0){
-    const mg=ctx.createRadialGradient(mx,my,0,mx,my,180);
-    mg.addColorStop(0,'rgba(255,200,130,0.06)');
-    mg.addColorStop(0.5,'rgba(200,150,100,0.025)');
+    const mg=ctx.createRadialGradient(mx,my,0,mx,my,200);
+    mg.addColorStop(0,'rgba(255,210,140,0.1)');
+    mg.addColorStop(0.4,'rgba(220,170,120,0.05)');
     mg.addColorStop(1,'rgba(5,5,16,0)');
-    ctx.fillStyle=mg;
-    ctx.fillRect(mx-180,my-180,360,360);
+    ctx.fillStyle=mg;ctx.fillRect(mx-200,my-200,400,400);
   }
 
-  // Stars
+  // Stars — brighter
   for(const s of STARS){
-    const tw=s.alpha*(0.3+0.7*Math.sin(t*s.speed+s.phase));
-    ctx.beginPath();
-    ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);
-    ctx.fillStyle=s.warm?`rgba(255,210,160,${tw})`:`rgba(190,210,255,${tw})`;
+    const tw=s.alpha*(0.4+0.6*Math.sin(t*s.speed+s.phase));
+    if(tw<0.02)continue;
+    ctx.beginPath();ctx.arc(s.x*W,s.y*H,s.r,0,Math.PI*2);
+    ctx.fillStyle=s.warm?`rgba(255,215,170,${tw})`:`rgba(200,220,255,${tw})`;
     ctx.fill();
+  }
+
+  // Flare events
+  maybeFlare();
+  for(let fi=flares.length-1;fi>=0;fi--){
+    const f=flares[fi];
+    f.r+=1.5;f.alpha*=0.985;
+    if(f.alpha<0.01||f.r>f.maxR){flares.splice(fi,1);continue}
+    ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,Math.PI*2);
+    ctx.strokeStyle=f.warm?`rgba(255,200,120,${f.alpha*0.3})`:`rgba(150,190,255,${f.alpha*0.3})`;
+    ctx.lineWidth=1.5;ctx.stroke();
+    // Inner glow
+    const fg=ctx.createRadialGradient(f.x,f.y,f.r*0.7,f.x,f.y,f.r);
+    fg.addColorStop(0,'rgba(5,5,16,0)');
+    fg.addColorStop(1,f.warm?`rgba(255,180,100,${f.alpha*0.06})`:`rgba(130,170,255,${f.alpha*0.06})`);
+    ctx.fillStyle=fg;ctx.fillRect(f.x-f.r,f.y-f.r,f.r*2,f.r*2);
+
+    // Boost nearby particles
+    for(const p of allP){
+      const dx=p.x-f.x,dy=p.y-f.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<f.r+20&&d>f.r-20){
+        p.flareBoost=Math.max(p.flareBoost,f.alpha*0.5);
+        if(d>1){p.vx+=dx/d*0.15*f.alpha;p.vy+=dy/d*0.15*f.alpha;}
+      }
+    }
   }
 
   // Update particles
   for(const p of allP){
     const L=p.layer;
     const f=flow(p.x,p.y,t,L.speed);
-    p.vx+=f.fx*0.07;
-    p.vy+=f.fy*0.07;
-
+    p.vx+=f.fx*0.07;p.vy+=f.fy*0.07;
     if(mx>=0){
-      const dx=mx-p.x,dy=my-p.y;
-      const d=Math.sqrt(dx*dx+dy*dy);
-      if(d<220&&d>1){
-        const force=0.025*L.speed*(1-d/220);
-        p.vx+=dx/d*force;
-        p.vy+=dy/d*force;
+      const dx=mx-p.x,dy=my-p.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<240&&d>1){
+        const force=0.03*L.speed*(1-d/240);
+        p.vx+=dx/d*force;p.vy+=dy/d*force;
       }
     }
-
-    const cdx=W*0.5-p.x,cdy=H*0.5-p.y;
-    const cd=Math.sqrt(cdx*cdx+cdy*cdy);
+    const cdx=W*0.5-p.x,cdy=H*0.5-p.y,cd=Math.sqrt(cdx*cdx+cdy*cdy);
     const maxD=Math.max(W,H)*0.6;
-    if(cd>maxD*0.4){
-      const pull=0.002*(cd/maxD)*L.speed;
-      p.vx+=cdx/cd*pull;
-      p.vy+=cdy/cd*pull;
-    }
-
-    p.vx*=0.987;p.vy*=0.987;
-    p.x+=p.vx;p.y+=p.vy;
+    if(cd>maxD*0.4){p.vx+=cdx/cd*0.002*(cd/maxD)*L.speed;p.vy+=cdy/cd*0.002*(cd/maxD)*L.speed;}
+    p.vx*=0.987;p.vy*=0.987;p.x+=p.vx;p.y+=p.vy;
     if(p.x<-30)p.x=W+30;if(p.x>W+30)p.x=-30;
     if(p.y<-30)p.y=H+30;if(p.y>H+30)p.y=-30;
-
-    if(fc%3===0){
-      p.trail[p.ti]={x:p.x,y:p.y};
-      p.ti=(p.ti+1)%p.trail.length;
-    }
+    p.flareBoost*=0.95;
+    if(fc%3===0){p.trail[p.ti]={x:p.x,y:p.y};p.ti=(p.ti+1)%p.trail.length;}
   }
 
-  // Draw trails — batched by color
-  ctx.lineWidth=0.3;
+  // Trails — visible now
+  ctx.lineWidth=0.5;
   for(let warm=0;warm<2;warm++){
     ctx.beginPath();
     for(const p of allP){
       if((warm===1)!==p.warm)continue;
       const tl=p.trail.length;
-      const L=p.layer;
       for(let j=1;j<tl;j++){
-        const idx=(p.ti+j)%tl;
-        const prev=(p.ti+j-1)%tl;
+        const idx=(p.ti+j)%tl,prev=(p.ti+j-1)%tl;
         ctx.moveTo(p.trail[prev].x,p.trail[prev].y);
         ctx.lineTo(p.trail[idx].x,p.trail[idx].y);
       }
     }
-    ctx.strokeStyle=warm?'rgba(200,150,100,0.06)':'rgba(120,150,210,0.06)';
+    const a=0.1;
+    ctx.strokeStyle=warm?`rgba(220,170,110,${a})`:`rgba(140,170,230,${a})`;
     ctx.stroke();
   }
 
-  // Draw particles
+  // Particles — brighter, with flare boost
   for(const p of allP){
     const L=p.layer;
-    const br=p.r*(1+0.2*Math.sin(t*0.6+p.phase)+0.08*breath);
-    const al=L.alpha*(0.5+0.5*Math.sin(t*0.35+p.phase))*p.brightness;
-
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,br,0,Math.PI*2);
-    ctx.fillStyle=p.warm?`rgba(255,190,120,${al})`:`rgba(170,200,255,${al})`;
+    const br=p.r*(1+0.2*Math.sin(t*0.6+p.phase)+0.08*breath)+p.flareBoost*3;
+    const al=L.alpha*(0.6+0.4*Math.sin(t*0.35+p.phase))*p.brightness+p.flareBoost;
+    const clamped=Math.min(al,1);
+    ctx.beginPath();ctx.arc(p.x,p.y,br,0,Math.PI*2);
+    ctx.fillStyle=p.warm?`rgba(255,200,130,${clamped})`:`rgba(180,210,255,${clamped})`;
     ctx.fill();
-
-    // Bloom only for very bright particles (limit gradient count)
-    if(p.brightness>0.8&&L.alpha>0.3){
-      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,br*4*L.speed);
-      g.addColorStop(0,p.warm?`rgba(255,170,80,${al*0.12})`:`rgba(140,180,255,${al*0.08})`);
+    // Bloom — lower threshold, more visible
+    if(p.brightness>0.7||p.flareBoost>0.1){
+      const bloomR=br*(3+p.flareBoost*8)*L.speed;
+      const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,bloomR);
+      const ba=clamped*0.15+p.flareBoost*0.3;
+      g.addColorStop(0,p.warm?`rgba(255,180,90,${ba})`:`rgba(150,190,255,${ba})`);
       g.addColorStop(1,'rgba(5,5,16,0)');
-      ctx.fillStyle=g;
-      const s=br*8*L.speed;
-      ctx.fillRect(p.x-s/2,p.y-s/2,s,s);
+      ctx.fillStyle=g;ctx.fillRect(p.x-bloomR,p.y-bloomR,bloomR*2,bloomR*2);
     }
   }
 
-  // Connections — spatial grid (O(n) instead of O(n²))
-  buildGrid();
-  ctx.lineWidth=0.4;
+  // Connections
+  buildGrid();ctx.lineWidth=0.5;
   for(let i=0;i<allP.length;i++){
-    const p=allP[i];
-    const gx=(p.x/GRID_SIZE)|0;
-    const gy=(p.y/GRID_SIZE)|0;
+    const p=allP[i],gx=(p.x/GRID_SIZE)|0,gy=(p.y/GRID_SIZE)|0;
     const connD2=p.layer.connD*p.layer.connD;
-    // Check 3x3 neighborhood
-    for(let dx=-1;dx<=1;dx++){
-      for(let dy=-1;dy<=1;dy++){
-        const cell=grid[gridKey(gx+dx,gy+dy)];
-        if(!cell)continue;
-        for(let ci=0;ci<cell.length;ci++){
-          const j=cell[ci];
-          if(j<=i)continue;
-          const q=allP[j];
-          if(q.layerIdx!==p.layerIdx)continue;
-          const ddx=p.x-q.x,ddy=p.y-q.y;
-          const d2=ddx*ddx+ddy*ddy;
-          if(d2<connD2){
-            const a=p.layer.alpha*0.08*(1-d2/connD2);
-            ctx.beginPath();
-            ctx.moveTo(p.x,p.y);
-            ctx.lineTo(q.x,q.y);
-            ctx.strokeStyle=(p.warm||q.warm)?`rgba(200,160,130,${a})`:`rgba(120,150,220,${a})`;
-            ctx.stroke();
-          }
+    for(let dx=-1;dx<=1;dx++){for(let dy=-1;dy<=1;dy++){
+      const cell=grid[gridKey(gx+dx,gy+dy)];if(!cell)continue;
+      for(let ci=0;ci<cell.length;ci++){
+        const j=cell[ci];if(j<=i)continue;
+        const q=allP[j];if(q.layerIdx!==p.layerIdx)continue;
+        const ddx=p.x-q.x,ddy=p.y-q.y,d2=ddx*ddx+ddy*ddy;
+        if(d2<connD2){
+          const a=p.layer.alpha*0.12*(1-d2/connD2);
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);
+          ctx.strokeStyle=(p.warm||q.warm)?`rgba(220,170,140,${a})`:`rgba(140,165,230,${a})`;
+          ctx.stroke();
         }
       }
-    }
+    }}
   }
-
   requestAnimationFrame(draw);
 }
-
 draw();
 </script>
 </body>
