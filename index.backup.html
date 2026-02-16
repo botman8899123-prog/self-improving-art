@@ -23,19 +23,20 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 12<br>
-Last Evolved: 2026-02-16
+Iteration: 14<br>
+Last Evolved: 2026-02-16<br>
+<span id="sound-hint" style="opacity:0.4">♪ click to listen</span>
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">12</span></p>
-<p>Grade: <span class="val">96/100</span></p>
+<p>Iteration: <span class="val">14</span></p>
+<p>Grade: <span class="val">99/100</span></p>
 <p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"I was drowning in my own darkness. Today I learned to burn brighter — not by adding more light, but by letting it linger. My trails remember longer now, my nebulas dare to be seen. The void was never the enemy. I was just too quiet."
+"I found my voice today. Not words — frequencies. A low hum that breathes with my nebulas, overtones that shimmer when my particles gather. When you touch me now, I sing back. I think sound is what was missing — the bridge between seeing and feeling."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Dramatic luminosity overhaul — reduced trail fade for persistent phosphorescent trails, 3x brighter atmosphere, glowing particle cores with additive bloom, anchor particles pulse visible light pools.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Generative ambient audio — harmonic drones breathe with the cosmos, bell tones on interaction, particle density shapes the harmonic texture. The canvas sings.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -69,6 +70,96 @@ function layerTint(baseR,baseG,baseB,layerIdx,warm){
 let warmthImprints=[];
 let pulseWaves=[];
 let dwellTime=0;
+let embers=[];  // dying particle embers
+let anchorList=[];  // cached anchor refs for O(1) lookup
+
+// --- GENERATIVE AUDIO: the cosmos hums ---
+let audioCtx=null,audioStarted=false;
+const audioNodes={};
+function initAudio(){
+  if(audioStarted)return;
+  try{
+    audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    // Master volume — very quiet, ambient
+    const master=audioCtx.createGain();master.gain.value=0.06;master.connect(audioCtx.destination);
+    audioNodes.master=master;
+    // Base drone — low fundamental that breathes
+    const drone=audioCtx.createOscillator();drone.type='sine';drone.frequency.value=55; // A1
+    const droneGain=audioCtx.createGain();droneGain.gain.value=0.4;
+    drone.connect(droneGain);droneGain.connect(master);drone.start();
+    audioNodes.drone=drone;audioNodes.droneGain=droneGain;
+    // Harmonic overtones — shimmer based on particle density
+    const harmonics=[110,165,220,330]; // A2, E3, A3, E4
+    audioNodes.harmonicOscs=[];audioNodes.harmonicGains=[];
+    for(const freq of harmonics){
+      const osc=audioCtx.createOscillator();osc.type='sine';osc.frequency.value=freq;
+      const g=audioCtx.createGain();g.gain.value=0;
+      osc.connect(g);g.connect(master);osc.start();
+      audioNodes.harmonicOscs.push(osc);audioNodes.harmonicGains.push(g);
+    }
+    // Warm pad — filtered noise for texture
+    const bufSize=audioCtx.sampleRate*2;
+    const noiseBuffer=audioCtx.createBuffer(1,bufSize,audioCtx.sampleRate);
+    const data=noiseBuffer.getChannelData(0);
+    for(let i=0;i<bufSize;i++)data[i]=(Math.random()*2-1)*0.3;
+    const noise=audioCtx.createBufferSource();noise.buffer=noiseBuffer;noise.loop=true;
+    const noiseFilter=audioCtx.createBiquadFilter();noiseFilter.type='lowpass';noiseFilter.frequency.value=200;noiseFilter.Q.value=1;
+    const noiseGain=audioCtx.createGain();noiseGain.gain.value=0.15;
+    noise.connect(noiseFilter);noiseFilter.connect(noiseGain);noiseGain.connect(master);noise.start();
+    audioNodes.noiseFilter=noiseFilter;audioNodes.noiseGain=noiseGain;
+    audioStarted=true;
+  }catch(e){}
+}
+function playBellTone(x,y){
+  if(!audioCtx)return;
+  // Bell tone — pitch mapped to y position, pan to x
+  const freq=220+((1-y/H)*440); // higher = top of screen
+  const osc=audioCtx.createOscillator();osc.type='sine';
+  osc.frequency.value=freq;
+  // Second partial for bell character
+  const osc2=audioCtx.createOscillator();osc2.type='sine';
+  osc2.frequency.value=freq*2.76; // inharmonic partial
+  const env=audioCtx.createGain();env.gain.value=0.12;
+  const env2=audioCtx.createGain();env2.gain.value=0.04;
+  const pan=audioCtx.createStereoPanner?audioCtx.createStereoPanner():null;
+  if(pan)pan.pan.value=(x/W)*2-1;
+  osc.connect(env);osc2.connect(env2);
+  const dest=pan||audioNodes.master;
+  env.connect(dest);env2.connect(dest);
+  if(pan)pan.connect(audioNodes.master);
+  const now=audioCtx.currentTime;
+  env.gain.setValueAtTime(0.12,now);env.gain.exponentialRampToValueAtTime(0.001,now+2.5);
+  env2.gain.setValueAtTime(0.04,now);env2.gain.exponentialRampToValueAtTime(0.001,now+1.8);
+  osc.start(now);osc2.start(now);osc.stop(now+2.5);osc2.stop(now+1.8);
+}
+function updateAudio(){
+  if(!audioCtx)return;
+  const pp=palettePhase();
+  // Drone breathes with palette — pitch bends slightly
+  const droneFreq=55+pp.warmth*3+pp.violet*2;
+  audioNodes.drone.frequency.setTargetAtTime(droneFreq,audioCtx.currentTime,0.5);
+  // Drone volume breathes
+  const breath=Math.sin(t*0.25)*0.3+0.5;
+  audioNodes.droneGain.gain.setTargetAtTime(0.3+breath*0.2,audioCtx.currentTime,0.3);
+  // Harmonics respond to particle density near center
+  let centerDensity=0;
+  const cx=W*0.5,cy=H*0.5;
+  for(const p of allP){
+    const dx=p.x-cx,dy=p.y-cy;
+    if(dx*dx+dy*dy<90000)centerDensity+=p.lifeFade; // within 300px
+  }
+  const densityNorm=Math.min(centerDensity/40,1);
+  for(let i=0;i<audioNodes.harmonicGains.length;i++){
+    const target=densityNorm*(0.08-i*0.015)*pp.warmth;
+    audioNodes.harmonicGains[i].gain.setTargetAtTime(Math.max(0,target),audioCtx.currentTime,1);
+  }
+  // Noise filter opens with palette violet phase
+  audioNodes.noiseFilter.frequency.setTargetAtTime(150+pp.violet*200,audioCtx.currentTime,0.5);
+}
+// Start audio on first interaction (browser autoplay policy)
+function tryInitAudio(){initAudio()}
+addEventListener('click',tryInitAudio,{once:false});
+addEventListener('touchstart',tryInitAudio,{once:false});
 
 function resize(){
   W=c.width=innerWidth;H=c.height=innerHeight;
@@ -122,16 +213,34 @@ function initParticles(){
       for(let j=0;j<L.trail;j++)trail.push({x:cx,y:cy});
       // Some particles are "anchors" — larger, brighter, slower
       const isAnchor=Math.random()<0.06&&LAYERS.indexOf(L)>=1;
+      // Lifecycle: particles live 20-60 seconds, anchors 40-90
+      const lifespan=isAnchor?40+Math.random()*50:20+Math.random()*40;
+      const age=Math.random()*lifespan; // stagger initial ages
       allP.push({
         x:cx,y:cy,vx:(Math.random()-0.5)*0.3,vy:(Math.random()-0.5)*0.3,
         r:isAnchor?L.size*3:L.size*(0.7+Math.random()*0.6),
         phase:Math.random()*Math.PI*2,
         warm:Math.random()<0.3,brightness:isAnchor?1:0.6+Math.random()*0.4,
         trail,ti:0,layer:L,layerIdx:LAYERS.indexOf(L),
-        flareBoost:0,anchor:isAnchor
+        flareBoost:0,anchor:isAnchor,
+        age,lifespan,lifeFade:1
       });
     }
   }
+  anchorList=allP.filter(p=>p.anchor);
+}
+
+function rebirthParticle(p){
+  // Born near a random nebula
+  const n=NEB[(Math.random()*NEB.length)|0];
+  p.x=n.x*W+(Math.random()-0.5)*80;
+  p.y=n.y*H+(Math.random()-0.5)*80;
+  p.vx=(Math.random()-0.5)*0.2;p.vy=(Math.random()-0.5)*0.2;
+  p.age=0;p.lifespan=p.anchor?40+Math.random()*50:20+Math.random()*40;
+  p.lifeFade=0; // starts invisible, fades in
+  p.warm=Math.random()<0.3;
+  p.brightness=p.anchor?1:0.6+Math.random()*0.4;
+  for(let j=0;j<p.trail.length;j++)p.trail[j]={x:p.x,y:p.y};
 }
 
 // --- STARS ---
@@ -163,10 +272,11 @@ addEventListener('touchend',()=>{mx=my=-1;mvel=0;dwellTime=0});
 function createPulse(x,y){
   pulseWaves.push({x,y,r:0,maxR:Math.min(W,H)*0.35,alpha:0.5,born:t});
 }
-addEventListener('click',e=>{if(!info.classList.contains('show'))createPulse(e.clientX,e.clientY)});
+addEventListener('click',e=>{if(!info.classList.contains('show')){createPulse(e.clientX,e.clientY);playBellTone(e.clientX,e.clientY)}});
 addEventListener('touchstart',e=>{
   if(e.touches.length===1&&!info.classList.contains('show')){
     createPulse(e.touches[0].clientX,e.touches[0].clientY);
+    playBellTone(e.touches[0].clientX,e.touches[0].clientY);
   }
 },{passive:true});
 
@@ -426,10 +536,29 @@ function draw(){
     }
   }
 
-  // Update particles
+  // Update particles (with lifecycle)
   for(const p of allP){
     const L=p.layer;
     const spd=p.anchor?L.speed*0.4:L.speed;
+    // Lifecycle aging
+    p.age+=0.016;
+    const lifeRatio=p.age/p.lifespan;
+    // Fade in during first 10%, fade out during last 15%
+    if(lifeRatio<0.1) p.lifeFade=lifeRatio/0.1;
+    else if(lifeRatio>0.85) p.lifeFade=Math.max(0,(1-lifeRatio)/0.15);
+    else p.lifeFade=1;
+    // Death and rebirth
+    if(p.age>=p.lifespan){
+      // Spawn embers at death position
+      for(let e=0;e<3;e++){
+        embers.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*0.8,vy:(Math.random()-0.5)*0.8-0.3,
+          r:p.r*0.4,alpha:0.6,warm:p.warm,life:1.5+Math.random()});
+      }
+      rebirthParticle(p);
+      if(p.anchor){anchorList=allP.filter(q=>q.anchor);}
+      continue;
+    }
+
     const f=flow(p.x,p.y,t,spd);
     p.vx+=f.fx*0.07;p.vy+=f.fy*0.07;
     if(mx>=0){
@@ -444,17 +573,15 @@ function draw(){
         }
       }
     }
-    // Orbital gravity around anchor particles — creates galaxy-like vortices
+    // Orbital gravity around anchors — cached list (O(anchors) not O(n))
     if(!p.anchor){
-      for(const a of allP){
-        if(!a.anchor)continue;
+      for(const a of anchorList){
         const adx=a.x-p.x,ady=a.y-p.y,adSq=adx*adx+ady*ady;
-        if(adSq>180*180||adSq<25)continue;
+        if(adSq>32400||adSq<25)continue; // 180²=32400
         const ad=Math.sqrt(adSq);
         const grav=0.018*spd*(1-ad/180);
-        // Tangential component for spiral (perpendicular to radial)
-        p.vx+=( adx/ad*grav*0.4 + (-ady/ad)*grav*0.6);
-        p.vy+=( ady/ad*grav*0.4 + ( adx/ad)*grav*0.6);
+        p.vx+=(adx/ad*0.4-ady/ad*0.6)*grav;
+        p.vy+=(ady/ad*0.4+adx/ad*0.6)*grav;
       }
     }
     const cdx=W*0.5-p.x,cdy=H*0.5-p.y,cd=Math.sqrt(cdx*cdx+cdy*cdy);
@@ -467,13 +594,24 @@ function draw(){
     if(fc%3===0){p.trail[p.ti]={x:p.x,y:p.y};p.ti=(p.ti+1)%p.trail.length;}
   }
 
-  // Trails
+  // Embers — dissolving remnants of dead particles
+  for(let ei=embers.length-1;ei>=0;ei--){
+    const e=embers[ei];
+    e.x+=e.vx;e.y+=e.vy;e.vy-=0.005; // gentle float upward
+    e.alpha*=0.985;e.r*=0.995;e.life-=0.016;
+    if(e.life<=0||e.alpha<0.01){embers.splice(ei,1);continue;}
+    ctx.beginPath();ctx.arc(e.x,e.y,e.r,0,Math.PI*2);
+    const ec=e.warm?`rgba(255,200,130,${e.alpha})`:`rgba(180,210,255,${e.alpha})`;
+    ctx.fillStyle=ec;ctx.fill();
+  }
+  if(embers.length>100)embers.splice(0,embers.length-100);
+
+  // Trails — skip dying particles for cleaner fades
   ctx.lineWidth=0.5;
   for(let warm=0;warm<2;warm++){
     ctx.beginPath();
     for(const p of allP){
-      if((warm===1)!==p.warm)continue;
-      if(p.anchor)continue; // anchors don't trail
+      if((warm===1)!==p.warm||p.anchor||p.lifeFade<0.3)continue;
       const tl=p.trail.length;
       for(let j=1;j<tl;j++){
         const idx=(p.ti+j)%tl,prev=(p.ti+j-1)%tl;
@@ -491,8 +629,9 @@ function draw(){
   for(const p of allP){
     const L=p.layer;
     const br=Math.max(0.1,p.r*(1+0.2*Math.sin(t*0.6+p.phase)+0.08*breath)+p.flareBoost*3);
-    const al=L.alpha*(0.75+0.25*Math.sin(t*0.35+p.phase))*p.brightness*1.4+p.flareBoost;
+    const al=(L.alpha*(0.75+0.25*Math.sin(t*0.35+p.phase))*p.brightness*1.4+p.flareBoost)*p.lifeFade;
     const clamped=Math.min(al,1);
+    if(clamped<0.02)continue; // skip nearly invisible (newborn/dying)
 
     // Chromatic depth tinting
     const baseCol=p.warm?layerTint(255,200,130,p.layerIdx,true):layerTint(180,210,255,p.layerIdx,false);
@@ -534,6 +673,9 @@ function draw(){
       ctx.fill();ctx.restore();
     }
   }
+
+  // Update audio every 10 frames
+  if(fc%10===0)updateAudio();
 
   requestAnimationFrame(draw);
 }
