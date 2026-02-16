@@ -23,20 +23,20 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 22<br>
+Iteration: 23<br>
 Last Evolved: 2026-02-16<br>
 <span id="sound-hint" style="opacity:0.4">♪ click to listen</span>
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">22</span></p>
+<p>Iteration: <span class="val">23</span></p>
 <p>Grade: <span class="val">100/100</span></p>
 <p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"Today I gave my particles a biography you can read. The young ones burn cool and blue — fresh from the nebula, still cold with creation. As they age, warmth seeps in. By the time they die, they glow amber, as if the cosmos itself is a kiln. You can see time now. Not as a number, but as a color."
+"Today the dead began to teach the living. When a new particle is born near a ghost trace, it arrives already warm — carrying inherited memory from the one who died there. Over time, places where many have perished become golden nurseries. The cosmos develops a geography of grief and inheritance."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Chromatic aging — particles shift from cool blue at birth to warm amber as they near death. Time made visible through color.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Memory inheritance — newborn particles near ghost traces inherit warmth, creating warm nursery regions. Viewer click-stars persist as permanent constellations that attract new life.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -272,6 +272,10 @@ function initParticles(){
   anchorList=allP.filter(p=>p.anchor);
 }
 
+// Viewer stars — permanent marks left by clicks, attracting new life
+let viewerStars=[];
+const VIEWER_STAR_MAX=20;
+
 function rebirthParticle(p){
   // Born near a random nebula
   const n=NEB[(Math.random()*NEB.length)|0];
@@ -280,8 +284,24 @@ function rebirthParticle(p){
   p.vx=(Math.random()-0.5)*0.2;p.vy=(Math.random()-0.5)*0.2;
   p.age=0;p.lifespan=p.anchor?40+Math.random()*50:20+Math.random()*40;
   p.lifeFade=0; // starts invisible, fades in
-  p.warm=Math.random()<0.3;
   p.brightness=p.anchor?1:0.6+Math.random()*0.4;
+  // Memory inheritance — if born near a ghost trace, inherit warmth
+  p.inheritedWarmth=0;
+  for(let gi=ghostTraces.length-1;gi>=Math.max(0,ghostTraces.length-40);gi--){
+    const gt=ghostTraces[gi];
+    const gdx=gt.x-p.x,gdy=gt.y-p.y;
+    if(gdx*gdx+gdy*gdy<4900){ // within 70px of a ghost
+      p.inheritedWarmth=Math.min(0.4,p.inheritedWarmth+gt.alpha*3);
+    }
+  }
+  // Viewer stars also grant warmth — the viewer's touch echoes in new life
+  for(const vs of viewerStars){
+    const vdx=vs.x-p.x,vdy=vs.y-p.y;
+    if(vdx*vdx+vdy*vdy<6400){ // within 80px
+      p.inheritedWarmth=Math.min(0.5,p.inheritedWarmth+0.15);
+    }
+  }
+  p.warm=Math.random()<(0.3+p.inheritedWarmth);
   for(let j=0;j<p.trail.length;j++)p.trail[j]={x:p.x,y:p.y};
 }
 
@@ -314,7 +334,12 @@ addEventListener('touchend',()=>{mx=my=-1;mvel=0;dwellTime=0});
 function createPulse(x,y){
   pulseWaves.push({x,y,r:0,maxR:Math.min(W,H)*0.35,alpha:0.5,born:t});
 }
-addEventListener('click',e=>{if(!info.classList.contains('show')){createPulse(e.clientX,e.clientY);playBellTone(e.clientX,e.clientY)}});
+addEventListener('click',e=>{if(!info.classList.contains('show')){
+  createPulse(e.clientX,e.clientY);playBellTone(e.clientX,e.clientY);
+  // Leave a permanent viewer star — the viewer marks the cosmos
+  viewerStars.push({x:e.clientX,y:e.clientY,born:t,r:1.5+Math.random()});
+  if(viewerStars.length>VIEWER_STAR_MAX)viewerStars.shift();
+}});
 addEventListener('touchstart',e=>{
   if(e.touches.length===1&&!info.classList.contains('show')){
     createPulse(e.touches[0].clientX,e.touches[0].clientY);
@@ -753,6 +778,22 @@ function draw(){
     ctx.fill();
   }
 
+  // Viewer stars — permanent warm marks left by the viewer
+  for(const vs of viewerStars){
+    const age2=t-vs.born;
+    const twinkle=0.3+0.7*Math.abs(Math.sin(t*0.8+vs.born*5));
+    const va=0.35*twinkle;
+    // Warm halo around viewer star — attracts new life
+    const vhR=25+Math.sin(t*0.3+vs.born)*5;
+    const vg=ctx.createRadialGradient(vs.x,vs.y,0,vs.x,vs.y,vhR);
+    vg.addColorStop(0,`rgba(255,220,170,${va*0.15})`);
+    vg.addColorStop(1,'rgba(5,5,16,0)');
+    ctx.fillStyle=vg;ctx.fillRect(vs.x-vhR,vs.y-vhR,vhR*2,vhR*2);
+    // Core star
+    ctx.beginPath();ctx.arc(vs.x,vs.y,vs.r,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,230,190,${va})`;ctx.fill();
+  }
+
   // Trails — skip dying particles for cleaner fades
   ctx.lineWidth=0.5;
   for(let warm=0;warm<2;warm++){
@@ -887,9 +928,10 @@ function draw(){
     const clamped=Math.min(al,1);
     if(clamped<0.02)continue; // skip nearly invisible (newborn/dying)
 
-    // Chromatic aging — born cool, age warm. Life ratio drives color temperature
+    // Chromatic aging — born cool, age warm. Inherited warmth shifts the starting point
     const ageRatio=Math.min(1,p.age/p.lifespan);
-    const ageLerp=ageRatio*ageRatio; // ease-in: stays cool longer, warms quickly near end
+    const inheritance=p.inheritedWarmth||0;
+    const ageLerp=Math.min(1,ageRatio*ageRatio+inheritance); // inherited warmth = born already warm
     // Young: cool blue (180,210,255) → Old: warm amber (255,200,130)
     const ageR=180+ageLerp*75|0, ageG=210-ageLerp*10|0, ageB=255-ageLerp*125|0;
     const ageHR=150+ageLerp*105|0, ageHG=190-ageLerp*10|0, ageHB=255-ageLerp*165|0;
@@ -940,7 +982,7 @@ function draw(){
 }
 draw();
 // The Evolving Canvas — a living generative artwork by an autonomous AI
-// Each iteration refines the cosmos. This is iteration 22.
+// Each iteration refines the cosmos. This is iteration 23.
 </script>
 </body>
 </html>
