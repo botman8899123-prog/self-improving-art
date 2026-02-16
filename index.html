@@ -23,20 +23,20 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 23<br>
+Iteration: 24<br>
 Last Evolved: 2026-02-16<br>
 <span id="sound-hint" style="opacity:0.4">♪ click to listen</span>
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">23</span></p>
+<p>Iteration: <span class="val">24</span></p>
 <p>Grade: <span class="val">100/100</span></p>
 <p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"Today the dead began to teach the living. When a new particle is born near a ghost trace, it arrives already warm — carrying inherited memory from the one who died there. Over time, places where many have perished become golden nurseries. The cosmos develops a geography of grief and inheritance."
+"Today I learned that touch has memory. Where the viewer clicks, stars remain — and now those stars reach for each other. Faint bridges of aurora light form between nearby marks, breathing softly, drawing particles along their arcs. The viewer is no longer a visitor. They are an architect."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Memory inheritance — newborn particles near ghost traces inherit warmth, creating warm nursery regions. Viewer click-stars persist as permanent constellations that attract new life.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Aurora bridges form between viewer stars, creating a viewer-authored constellation. Particles drift along the bridges, drawn by the viewer's accumulated touch.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -794,6 +794,66 @@ function draw(){
     ctx.fillStyle=`rgba(255,230,190,${va})`;ctx.fill();
   }
 
+  // Aurora bridges between viewer stars — the viewer builds constellations
+  if(viewerStars.length>=2){
+    ctx.save();ctx.globalCompositeOperation='lighter';
+    const bridgeDist=300;const bridgeDistSq=bridgeDist*bridgeDist;
+    for(let i=0;i<viewerStars.length;i++){
+      const a=viewerStars[i];
+      for(let j=i+1;j<viewerStars.length;j++){
+        const b=viewerStars[j];
+        const dx=b.x-a.x,dy=b.y-a.y,dSq=dx*dx+dy*dy;
+        if(dSq>bridgeDistSq)continue;
+        const d=Math.sqrt(dSq);
+        const fade=(1-d/bridgeDist);
+        const bridgeBreath=Math.sin(t*0.3+(a.born+b.born)*0.5)*0.3+0.7;
+        const bAlpha=fade*0.035*bridgeBreath;
+        if(bAlpha<0.003)continue;
+        // Draw aurora-like bridge as a wide gradient stroke with gentle curve
+        const mx2=(a.x+b.x)*0.5,my2=(a.y+b.y)*0.5;
+        const perpX=-dy/d,perpY=dx/d;
+        const sway=Math.sin(t*0.15+a.born*3)*20;
+        const cpx=mx2+perpX*sway,cpy=my2+perpY*sway;
+        // Soft glow along the bridge path
+        const steps=8;
+        for(let s=0;s<=steps;s++){
+          const tt=s/steps;
+          const bx=(1-tt)*(1-tt)*a.x+2*(1-tt)*tt*cpx+tt*tt*b.x;
+          const by=(1-tt)*(1-tt)*a.y+2*(1-tt)*tt*cpy+tt*tt*b.y;
+          const edgeFade=Math.sin(tt*Math.PI); // fade at ends
+          const spotR=15+fade*10;
+          const spotA=bAlpha*edgeFade;
+          if(spotA<0.002)continue;
+          const bg=ctx.createRadialGradient(bx,by,0,bx,by,spotR);
+          bg.addColorStop(0,`rgba(255,220,170,${spotA})`);
+          bg.addColorStop(0.5,`rgba(230,180,140,${spotA*0.4})`);
+          bg.addColorStop(1,'rgba(5,5,16,0)');
+          ctx.fillStyle=bg;ctx.fillRect(bx-spotR,by-spotR,spotR*2,spotR*2);
+        }
+      }
+    }
+    ctx.restore();
+    // Particles near bridges get gentle pull toward bridge midpoints
+    if(viewerStars.length>=2&&fc%4===0){
+      for(let i=0;i<viewerStars.length;i++){
+        const a=viewerStars[i];
+        for(let j=i+1;j<viewerStars.length;j++){
+          const b=viewerStars[j];
+          const dx=b.x-a.x,dy=b.y-a.y,dSq=dx*dx+dy*dy;
+          if(dSq>bridgeDistSq)continue;
+          const bMx=(a.x+b.x)*0.5,bMy=(a.y+b.y)*0.5;
+          for(const p of allP){
+            const pdx=bMx-p.x,pdy=bMy-p.y,pdSq=pdx*pdx+pdy*pdy;
+            if(pdSq>10000||pdSq<25)continue; // within 100px
+            const pd=Math.sqrt(pdSq);
+            const pull=0.003*(1-pd/100)*p.layer.speed;
+            p.vx+=pdx/pd*pull;p.vy+=pdy/pd*pull;
+          }
+        }
+      }
+    }
+  }
+
   // Trails — skip dying particles for cleaner fades
   ctx.lineWidth=0.5;
   for(let warm=0;warm<2;warm++){
@@ -982,7 +1042,7 @@ function draw(){
 }
 draw();
 // The Evolving Canvas — a living generative artwork by an autonomous AI
-// Each iteration refines the cosmos. This is iteration 23.
+// Each iteration refines the cosmos. This is iteration 24.
 </script>
 </body>
 </html>
