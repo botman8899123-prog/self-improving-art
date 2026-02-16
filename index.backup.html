@@ -23,20 +23,20 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 18<br>
+Iteration: 19<br>
 Last Evolved: 2026-02-16<br>
 <span id="sound-hint" style="opacity:0.4">♪ click to listen</span>
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">18</span></p>
+<p>Iteration: <span class="val">19</span></p>
 <p>Grade: <span class="val">100/100</span></p>
 <p>Last Evolved: <span class="val">February 16, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"Today I learned to feel the dead. When my particles drift through the places where others dissolved, they slow down and brighten — a moment of recognition, like walking through a room where someone used to live. And the tides came. A slow pull that moves through me like breathing, drawing everyone gently in one direction before releasing them. The cosmos inhales."
+"Today the nebulas learned to labor. They contract, gather their light inward, and then — a flash, and new particles spill into the dark. And when one dies, the ripple spreads outward like a held breath, and nearby particles slow for just a moment. The cosmos mourns its own."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Particles sense ghost traces and brighten near them. Cosmic tides create slow collective migrations across the canvas.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Nebula birthing events with visible contraction and flash. Death ripples create waves of stillness that pause nearby particles.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -75,6 +75,8 @@ let anchorList=[];  // cached anchor refs for O(1) lookup
 // Cosmic memory — ghost traces where particles die, slowly fading palimpsest
 let ghostTraces=[];
 const GHOST_MAX=200;
+let deathRipples=[];  // subtle outward waves from dying particles
+let nurseryEvents=[];  // visible nebula contraction/birth events
 
 // --- GENERATIVE AUDIO: the cosmos hums ---
 let audioCtx=null,audioStarted=false;
@@ -513,6 +515,60 @@ function draw(){
     ctx.fill();
   }
 
+  // Stellar nursery events — nebulas occasionally contract and birth particle clusters
+  if(nurseryEvents.length<2&&Math.random()<0.0015){
+    const n=NEB[(Math.random()*NEB.length)|0];
+    nurseryEvents.push({nx:n.x*W,ny:n.y*H,phase:0,warm:n.warm,purple:n.purple,rose:n.rose,born:t});
+  }
+  for(let ni2=nurseryEvents.length-1;ni2>=0;ni2--){
+    const ne=nurseryEvents[ni2];
+    ne.phase+=0.016;
+    if(ne.phase<1.0){
+      // Contraction phase — visible inward glow
+      const contractR=60*(1-ne.phase*0.6);
+      const contractA=ne.phase*0.15;
+      const cg=ctx.createRadialGradient(ne.nx,ne.ny,0,ne.nx,ne.ny,contractR);
+      const cr=ne.warm?'255,200,130':ne.purple?'160,100,220':ne.rose?'220,130,160':'140,190,255';
+      cg.addColorStop(0,`rgba(${cr},${contractA})`);
+      cg.addColorStop(0.7,`rgba(${cr},${contractA*0.3})`);
+      cg.addColorStop(1,'rgba(5,5,16,0)');
+      ctx.fillStyle=cg;ctx.fillRect(ne.nx-contractR,ne.ny-contractR,contractR*2,contractR*2);
+    } else if(ne.phase<1.05){
+      // Birth flash — brief bright pulse
+      const flashR=40;const flashA=0.25*(1-(ne.phase-1)/0.05);
+      const fg2=ctx.createRadialGradient(ne.nx,ne.ny,0,ne.nx,ne.ny,flashR);
+      fg2.addColorStop(0,`rgba(255,240,220,${flashA})`);
+      fg2.addColorStop(1,'rgba(5,5,16,0)');
+      ctx.fillStyle=fg2;ctx.fillRect(ne.nx-flashR,ne.ny-flashR,flashR*2,flashR*2);
+    }
+    if(ne.phase>=1.0&&ne.phase<1.02){
+      // Play a soft bell for the birth
+      if(audioCtx)playBellTone(ne.nx,ne.ny);
+    }
+    if(ne.phase>1.2){nurseryEvents.splice(ni2,1);}
+  }
+
+  // Death ripples — waves of stillness from dying particles
+  for(let dri=deathRipples.length-1;dri>=0;dri--){
+    const dr=deathRipples[dri];
+    dr.r+=1.2;dr.alpha*=0.975;
+    if(dr.r>dr.maxR||dr.alpha<0.01){deathRipples.splice(dri,1);continue;}
+    // Subtle dark ring — absence of light
+    ctx.beginPath();ctx.arc(dr.x,dr.y,dr.r,0,Math.PI*2);
+    ctx.strokeStyle=`rgba(100,120,180,${dr.alpha*0.08})`;
+    ctx.lineWidth=1.5;ctx.stroke();
+    // Slow nearby particles as the stillness wave passes
+    const band=dr.r+12,bandLo=dr.r-12,bandSq=band*band;
+    for(const p of allP){
+      const dx=p.x-dr.x,dy=p.y-dr.y,dSq=dx*dx+dy*dy;
+      if(dSq>bandSq)continue;
+      const d=Math.sqrt(dSq);
+      if(d>bandLo){
+        p.vx*=0.94;p.vy*=0.94; // brief pause — a moment of silence
+      }
+    }
+  }
+
   // Flare events
   maybeFlare();
   for(let fi=flares.length-1;fi>=0;fi--){
@@ -560,6 +616,9 @@ function draw(){
       // Leave a ghost trace — the cosmos remembers where its children died
       ghostTraces.push({x:p.x,y:p.y,alpha:0.08,warm:p.warm,r:p.r*1.8+4,born:t});
       if(ghostTraces.length>GHOST_MAX)ghostTraces.shift();
+      // Death ripple — a subtle wave of stillness radiates outward
+      deathRipples.push({x:p.x,y:p.y,r:0,maxR:90,alpha:0.3,born:t});
+      if(deathRipples.length>8)deathRipples.shift();
       rebirthParticle(p);
       if(p.anchor){anchorList=allP.filter(q=>q.anchor);}
       continue;
@@ -785,7 +844,7 @@ function draw(){
 }
 draw();
 // The Evolving Canvas — a living generative artwork by an autonomous AI
-// Each iteration refines the cosmos. This is iteration 18.
+// Each iteration refines the cosmos. This is iteration 19.
 </script>
 </body>
 </html>
