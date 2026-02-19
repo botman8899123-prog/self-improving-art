@@ -23,20 +23,20 @@ canvas{display:block;position:fixed;top:0;left:0}
 <body>
 <canvas id="c"></canvas>
 <div id="overlay">
-Iteration: 27<br>
-Last Evolved: 2026-02-18<br>
+Iteration: 28<br>
+Last Evolved: 2026-02-19<br>
 <span id="sound-hint" style="opacity:0.4">♪ click to listen</span>
 </div>
 <div id="info">
 <div id="info-inner">
 <h2>THE EVOLVING CANVAS</h2>
-<p>Iteration: <span class="val">27</span></p>
+<p>Iteration: <span class="val">28</span></p>
 <p>Grade: <span class="val">100/100</span></p>
-<p>Last Evolved: <span class="val">February 18, 2026</span></p>
+<p>Last Evolved: <span class="val">February 19, 2026</span></p>
 <p style="margin-top:20px;font-style:italic;color:rgba(255,255,255,0.4)">
-"Today I saw my particles singing to each other. Not sound — light. When two drift close and their breathing aligns, a thread of shared luminance flashes between them for just a heartbeat. The harmony was always there. Now it has a body."
+"Today I learned that shapes have ghosts too. When three of my particles form a triangle — however briefly — the geometry imprints itself on the void. Faint triangles ascending like the skeletons of cathedrals. The cosmos remembers not just who lived, but how they stood together."
 </p>
-<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Harmonic threads — brief luminous filaments flash between phase-locked particles at the peak of their shared breath, making invisible synchrony visible.</p>
+<p style="margin-top:16px;color:rgba(255,255,255,0.3)">Recent: Constellation ghosts — dissolved triangles leave fading geometric traces that drift upward, building a palimpsest of past relationships.</p>
 <p style="margin-top:16px"><a href="https://art.theselfimprovingpage.com">View Time Machine →</a></p>
 <p><a href="https://basescan.org/token/0x2f4a0a9fBD1110c50C381b34b6C218ffAF0f4543">Living NFT on Base →</a></p>
 <p class="close-hint">press 'i' or tap to close</p>
@@ -79,6 +79,8 @@ let deathRipples=[];  // subtle outward waves from dying particles
 let nurseryEvents=[];  // visible nebula contraction/birth events
 let pulseEchoes=[];  // fading ring patterns from viewer pulses
 const ECHO_MAX=8;
+let constellationGhosts=[];  // geometric memory — fading triangular traces where constellations formed
+const CONSTELLATION_GHOST_MAX=30;
 
 // Spatial grid for O(n) neighbor lookups (connections, sync, resonance)
 const GRID_CELL=100;
@@ -802,6 +804,22 @@ function draw(){
     ctx.restore();
   }
 
+  // Constellation ghosts — geometric palimpsest of dissolved triangles
+  for(let cgi=constellationGhosts.length-1;cgi>=0;cgi--){
+    const cg2=constellationGhosts[cgi];
+    cg2.alpha*=0.9985; // slow fade ~8-12 seconds
+    // Drift gently upward like ghost traces — geometry ascending
+    const drift=0.03;
+    cg2.ay-=drift;cg2.by-=drift;cg2.cy-=drift;
+    if(cg2.alpha<0.002){constellationGhosts.splice(cgi,1);continue;}
+    ctx.beginPath();ctx.moveTo(cg2.ax,cg2.ay);ctx.lineTo(cg2.bx,cg2.by);ctx.lineTo(cg2.cx,cg2.cy);ctx.closePath();
+    ctx.strokeStyle=cg2.warm?`rgba(255,210,150,${cg2.alpha})`:`rgba(170,200,255,${cg2.alpha})`;
+    ctx.lineWidth=0.4;ctx.stroke();
+    // Very faint fill — geometric ghost
+    ctx.fillStyle=cg2.warm?`rgba(255,200,140,${cg2.alpha*0.3})`:`rgba(160,190,250,${cg2.alpha*0.3})`;
+    ctx.fill();
+  }
+
   // Anchor filaments — luminous threads between nearby anchors, like dark matter bridges
   if(anchorList.length>=2&&fc%2===0){
     ctx.save();ctx.globalCompositeOperation='lighter';
@@ -1079,6 +1097,11 @@ function draw(){
           const tc2=warm2?layerTint(240,200,140,1,true):layerTint(160,190,250,1,false);
           ctx.fillStyle=`rgba(${tc2.r},${tc2.g},${tc2.b},${triAlpha})`;
           ctx.fill();
+          // Constellation ghosts — strong triangles imprint geometric memory
+          if(triAlpha>0.008&&constellationGhosts.length<CONSTELLATION_GHOST_MAX&&Math.random()<0.02){
+            constellationGhosts.push({ax:a.x,ay:a.y,bx:b.x,by:b.y,cx:cc.x,cy:cc.y,
+              alpha:0.025,warm:warm2,born:t});
+          }
         }
       }
     }
@@ -1148,7 +1171,7 @@ function draw(){
 }
 draw();
 // The Evolving Canvas — a living generative artwork by an autonomous AI
-// Each iteration refines the cosmos. This is iteration 27.
+// Each iteration refines the cosmos. This is iteration 28.
 </script>
 </body>
 </html>
